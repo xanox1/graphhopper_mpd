@@ -4,7 +4,13 @@ This directory contains a Dockerfile to build a Docker container for the GraphHo
 
 ## Building the Docker Image
 
-The GitHub Action in `.github/workflows/docker-build.yml` automatically builds and pushes the Docker container to GitHub Container Registry (GHCR) on every push to the master branch. Images are available at `ghcr.io/xanox1/graphhopper_mpd`.
+The GitHub Action in `.github/workflows/docker-build.yml` automatically builds and pushes the Docker container to GitHub Container Registry (GHCR). The workflow runs:
+
+- **On pull requests**: Builds and tests Docker images (validation only, no push)
+- **On direct pushes to master**: Builds and pushes images to GHCR  
+- **When PRs are merged to master**: Builds and pushes images to GHCR
+
+Images are available at `ghcr.io/xanox1/graphhopper_mpd`.
 
 ### Using Pre-built Images
 
