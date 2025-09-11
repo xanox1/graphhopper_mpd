@@ -1,0 +1,50 @@
+# Build artifacts and temporary files
+target/
+*.jar
+!web/target/graphhopper-web-*.jar
+
+# Version control
+.git/
+.gitignore
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation and examples
+docs/
+example/
+*.md
+CHANGELOG.md
+CONTRIBUTING.md
+CONTRIBUTORS.md
+
+# Test files
+src/test/
+
+# Node modules and cache
+web-bundle/node_modules/
+web-bundle/node/
+.npm/
+
+# Maven cache
+.m2/
+
+# Temporary files
+*.tmp
+*.log
+*~
+
+# License and legal files except those that might be needed
+LICENSE.txt
+NOTICE.md
+
+# Development configurations
+appveyor.yml
