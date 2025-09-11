@@ -4,7 +4,17 @@ This directory contains a Dockerfile to build a Docker container for the GraphHo
 
 ## Building the Docker Image
 
-The GitHub Action in `.github/workflows/docker-build.yml` automatically builds the Docker container on every push to the master branch.
+The GitHub Action in `.github/workflows/docker-build.yml` automatically builds and pushes the Docker container to GitHub Container Registry (GHCR) on every push to the master branch. Images are available at `ghcr.io/xanox1/graphhopper_mpd`.
+
+### Using Pre-built Images
+
+Pull the latest image from GHCR:
+
+```bash
+docker pull ghcr.io/xanox1/graphhopper_mpd:latest
+```
+
+### Building Manually
 
 To build manually:
 
@@ -18,7 +28,23 @@ docker build -t graphhopper:latest .
 
 ## Running the Container
 
-To run the GraphHopper service with your own OpenStreetMap data:
+### Using Pre-built Image from GHCR
+
+To run the GraphHopper service with your own OpenStreetMap data using the pre-built image:
+
+```bash
+# Download OSM data (example with Monaco)
+wget http://download.geofabrik.de/europe/monaco-latest.osm.pbf
+
+# Run the container with OSM data mounted
+docker run -d \
+  -p 8989:8989 \
+  -v $(pwd)/monaco-latest.osm.pbf:/app/data.osm.pbf \
+  -e JAVA_OPTS="-Xmx2g -Xms2g -Ddw.graphhopper.datareader.file=/app/data.osm.pbf" \
+  ghcr.io/xanox1/graphhopper_mpd:latest
+```
+
+### Using Locally Built Image
 
 ```bash
 # Download OSM data (example with Monaco)
