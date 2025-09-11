@@ -67,6 +67,11 @@ public class DefaultImportRegistry implements ImportRegistry {
                             (readerWay, accessValue) -> accessValue,
                             BikeRoadAccess::find)
             );
+        else if (MopedAccess.KEY.equals(name))
+            return ImportUnit.create(name, props -> MopedAccess.create(),
+                    (lookup, props) -> new MopedAccessParser(
+                            lookup.getEnumEncodedValue(MopedAccess.KEY, MopedAccess.class))
+            );
         else if (RoadAccess.KEY.equals(name))
             return ImportUnit.create(name, props -> RoadAccess.create(),
                     (lookup, props) -> new OSMRoadAccessParser<>(
