@@ -13,6 +13,12 @@ COPY config-docker.yml config.yml
 # Create directory for graph data
 RUN mkdir -p /app/graph-cache
 
+# Create directory for graphhopper volume
+RUN mkdir -p /app/graphhopper
+
+# Define volume for GraphHopper data
+VOLUME ["/app/graphhopper"]
+
 # Expose the default GraphHopper port
 EXPOSE 8989
 
