@@ -549,8 +549,7 @@ public class GraphHopperOSMTest {
                 setStoreOnFlush(true).
                 setGraphHopperLocation(ghLoc);
         ex = assertThrows(IllegalStateException.class, instance::importOrLoad);
-        assertEquals("Couldn't load from existing folder: " + ghLoc
-                + " but also cannot use file for DataReader as it wasn't specified!", ex.getMessage());
+        assertTrue(ex.getMessage().contains("No OpenStreetMap data available"), ex.getMessage());
 
         // missing profiles
         instance = new GraphHopper().
@@ -566,8 +565,7 @@ public class GraphHopperOSMTest {
                 setStoreOnFlush(false).
                 setGraphHopperLocation(ghLoc);
         ex = assertThrows(IllegalStateException.class, instance::importOrLoad);
-        assertEquals("Couldn't load from existing folder: " + ghLoc
-                + " but also cannot use file for DataReader as it wasn't specified!", ex.getMessage());
+        assertTrue(ex.getMessage().contains("No OpenStreetMap data available"), ex.getMessage());
     }
 
     @Test
