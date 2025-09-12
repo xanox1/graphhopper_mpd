@@ -930,8 +930,12 @@ public class GraphHopper {
 
     protected void importOSM() {
         if (osmFile == null)
-            throw new IllegalStateException("Couldn't load from existing folder: " + ghLocation
-                    + " but also cannot use file for DataReader as it wasn't specified!");
+            throw new IllegalStateException("No OpenStreetMap data available. Either:\n" +
+                    "1. Provide an OSM data file using -Ddw.graphhopper.datareader.file=/path/to/data.osm.pbf\n" +
+                    "2. Or mount a pre-built graph cache directory to: " + ghLocation + "\n\n" +
+                    "For Docker users, mount your OSM file and set the JAVA_OPTS environment variable:\n" +
+                    "  docker run -v data.osm.pbf:/app/data.osm.pbf -e JAVA_OPTS=\"-Ddw.graphhopper.datareader.file=/app/data.osm.pbf\" <image>\n\n" +
+                    "See documentation for more details: https://github.com/graphhopper/graphhopper/blob/master/docs/core/quickstart-from-source.md");
 
         List<CustomArea> customAreas = readCountries();
         if (isEmpty(customAreasDirectory)) {
