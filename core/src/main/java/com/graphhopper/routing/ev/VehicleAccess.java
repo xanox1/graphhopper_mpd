@@ -23,6 +23,9 @@ import com.graphhopper.routing.util.EncodingManager;
 public class VehicleAccess {
 
     public static String key(String name) {
+        if ("moped".equals(name)) {
+            return "moped_vehicle_access";
+        }
         return EncodingManager.getKey(name, "access");
     }
 
