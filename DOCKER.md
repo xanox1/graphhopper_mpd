@@ -38,8 +38,8 @@ To run the GraphHopper service with Netherlands OSM data using the pre-built ima
 # Download Netherlands OSM data
 wget http://download.geofabrik.de/europe/netherlands-latest.osm.pbf
 
-# Create a directory for the GraphHopper volume
-mkdir -p graphhopper-data
+# Copy the sample configuration from the repository
+cp -r docker-volume-config graphhopper-data
 mv netherlands-latest.osm.pbf graphhopper-data/
 
 # Run the container with GraphHopper volume mounted
@@ -55,8 +55,8 @@ docker run -d \
 # Download Netherlands OSM data
 wget http://download.geofabrik.de/europe/netherlands-latest.osm.pbf
 
-# Create a directory for the GraphHopper volume
-mkdir -p graphhopper-data
+# Copy the sample configuration from the repository
+cp -r docker-volume-config graphhopper-data
 mv netherlands-latest.osm.pbf graphhopper-data/
 
 # Run the container with GraphHopper volume mounted
@@ -68,21 +68,23 @@ docker run -d \
 
 ### Using Different OSM Data
 
-If you want to use a different OSM file, you can override the default configuration:
+If you want to use a different OSM file, you can modify the configuration:
 
 ```bash
 # Download your preferred OSM data (example with Monaco)
 wget http://download.geofabrik.de/europe/monaco-latest.osm.pbf
 
-# Create a directory for the GraphHopper volume
-mkdir -p graphhopper-data
+# Copy the sample configuration from the repository
+cp -r docker-volume-config graphhopper-data
 mv monaco-latest.osm.pbf graphhopper-data/
 
-# Run the container with custom data file
+# Edit the configuration file to point to your OSM data
+sed -i 's/netherlands-latest.osm.pbf/monaco-latest.osm.pbf/g' graphhopper-data/config.yml
+
+# Run the container
 docker run -d \
   -p 8989:8989 \
   -v $(pwd)/graphhopper-data:/app/graphhopper \
-  -e JAVA_OPTS="-Xmx2g -Xms2g -Ddw.graphhopper.datareader.file=/app/graphhopper/monaco-latest.osm.pbf" \
   ghcr.io/xanox1/graphhopper_mpd:latest
 ```
 
@@ -111,12 +113,15 @@ The script will check:
 
 ## Configuration
 
-- The container uses `/app/config.yml` as the default configuration
-- Mount your own config file to override: `-v /path/to/your/config.yml:/app/config.yml`
+- The container expects a configuration file at `/app/graphhopper/config.yml` in the mounted volume
+- Copy the sample configuration from `docker-volume-config/` in the repository to get started
 - OSM data and graph cache are stored in the `/app/graphhopper` volume
-- By default, the container expects `netherlands-latest.osm.pbf` in the graphhopper volume
+- Custom model files should be placed in `/app/graphhopper/custom_models/` directory
 - Graph data cache is stored in `/app/graphhopper/graph-cache` (persisted on the mounted volume)
+- Log files are written to `/app/graphhopper/logs/` for persistence
 - Set JVM options via the `JAVA_OPTS` environment variable
+
+**Configuration Changes**: With the volume-based configuration, you can modify settings without rebuilding the Docker image. Simply edit the files in your mounted volume and restart the container.
 
 ## Memory Requirements
 

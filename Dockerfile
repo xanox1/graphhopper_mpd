@@ -7,9 +7,6 @@ WORKDIR /app
 # Copy the GraphHopper web service JAR file
 COPY web/target/graphhopper-web-*.jar graphhopper-web.jar
 
-# Copy the Docker-specific configuration file
-COPY config-docker.yml config.yml
-
 # Create directory for graphhopper volume (graph-cache will be created within this)
 RUN mkdir -p /app/graphhopper
 
@@ -23,5 +20,6 @@ EXPOSE 8989
 ENV JAVA_OPTS="-Xmx2g -Xms2g"
 
 # Run GraphHopper web service
-# Note: Users need to mount OSM data file and set via environment variable or provide config
-CMD ["sh", "-c", "java $JAVA_OPTS -jar graphhopper-web.jar server config.yml"]
+# Note: Configuration file should be mounted in the volume at /app/graphhopper/config.yml
+# OSM data file should also be mounted in the volume
+CMD ["sh", "-c", "java $JAVA_OPTS -jar graphhopper-web.jar server /app/graphhopper/config.yml"]
