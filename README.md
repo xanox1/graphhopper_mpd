@@ -116,6 +116,14 @@ See the [documentation](./docs/index.md) that contains e.g. [the elevation guide
 
 ### Docker
 
+This repository includes Docker support with volume-based configuration. See [DOCKER.md](./DOCKER.md) for detailed instructions.
+
+**Key Features:**
+- Configuration files are loaded from persistent volume instead of being baked into the image
+- No need to rebuild the Docker image when changing configuration
+- Supports custom routing profiles and models  
+- Available at `ghcr.io/xanox1/graphhopper_mpd`
+
 The Docker images created by the community from the `master` branch can be found [here](https://hub.docker.com/r/israelhikingmap/graphhopper)
 (currently daily). See the [Dockerfile](https://github.com/IsraelHikingMap/graphhopper-docker-image-push) for more details.
 
