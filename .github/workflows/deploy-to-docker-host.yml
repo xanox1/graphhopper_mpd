@@ -11,6 +11,9 @@ name: Deploy to Docker Host
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     # Only run if the docker-build workflow completed successfully
     # and actually pushed images (not just PR builds)
     if: |
@@ -22,13 +25,21 @@ jobs:
     steps:
       - name: Deploy to Docker Host
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         with:
           host: ${{ secrets.DOCKER_HOST }}
           username: ${{ secrets.DOCKER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: GITHUB_TOKEN,GITHUB_ACTOR,GITHUB_REPOSITORY
           script: |
+            # Login to GHCR
+            echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+
             # Pull the latest image from GHCR
-            docker pull ghcr.io/${{ github.repository }}:latest
+            docker pull ghcr.io/$GITHUB_REPOSITORY:latest
 
             # Stop and remove existing container if it exists
             docker stop graphhopper || true
@@ -39,7 +50,10 @@ jobs:
               --name graphhopper \
               -p 8989:8989 \
               --restart unless-stopped \
-              ghcr.io/${{ github.repository }}:latest
+              ghcr.io/$GITHUB_REPOSITORY:latest
 
             # Clean up old images to save space
             docker image prune -f
+
+            # Logout for security
+            docker logout ghcr.io
