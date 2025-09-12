@@ -6,6 +6,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: benchmarks
     steps:
+      - name: Set up environment for benchmarks
+        run: |
+          echo "Setting up benchmark trigger environment"
+          echo "BENCHMARKS_ENABLED=true" >> $GITHUB_ENV
+          echo "Configuring network settings for API calls"
+      
       - name: trigger
         run: |
           curl -X POST -H "Authorization: token ${{ secrets.BENCHMARKS_TOKEN }}" \

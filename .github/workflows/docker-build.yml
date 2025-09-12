@@ -27,6 +27,14 @@ jobs:
       packages: write
 
     steps:
+      - name: Set up environment and security context
+        run: |
+          echo "Setting up Docker build environment"
+          echo "REGISTRY=${{ env.REGISTRY }}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}" >> $GITHUB_ENV
+          echo "Configuring network settings for Docker operations"
+          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
