@@ -12,6 +12,8 @@ The GitHub Action in `.github/workflows/docker-build.yml` automatically builds a
 
 Images are available at `ghcr.io/xanox1/graphhopper_mpd`.
 
+**Note**: Images in GHCR are private by default and require authentication to pull. The deployment workflow in `.github/workflows/deploy-to-docker-host.yml` handles this automatically using GitHub tokens.
+
 ### Building Manually
 
 To build manually:
