@@ -299,6 +299,11 @@ public class DefaultImportRegistry implements ImportRegistry {
         else if (VehicleAccess.key("foot").equals(name))
             return ImportUnit.create(name, props -> VehicleAccess.create("foot"),
                     FootAccessParser::new);
+        else if (VehicleAccess.key("moped").equals(name))
+            return ImportUnit.create(name, props -> VehicleAccess.create("moped"),
+                    MopedVehicleAccessParser::new,
+                    "roundabout"
+            );
 
         else if (VehicleSpeed.key("car").equals(name))
             return ImportUnit.create(name, props -> new DecimalEncodedValueImpl(

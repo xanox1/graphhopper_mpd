@@ -1,0 +1,21 @@
+// This custom model creates a moped vehicle profile that can access cycleways
+// when explicitly permitted (moped=yes or moped=designated OSM tags).
+// Unlike cars/motorcycles, mopeds can legally use some cycleways.
+//
+// To use this custom model you need to set the following in config.yml:
+// graph.encoded_values: moped_access, moped_access_enum, car_average_speed, road_access
+// profiles:
+//    - name: moped
+//      custom_model_files: [moped.json]
+
+{
+  "distance_influence": 90,
+  "priority": [
+    { "if": "!moped_access", "multiply_by": "0" },
+    { "if": "road_access == DESTINATION || road_access == PRIVATE", "multiply_by": "0.1" }
+  ],
+  "speed": [
+    { "if": "true", "limit_to": "car_average_speed" },
+    { "if": "true", "limit_to": "50" }
+  ]
+}
