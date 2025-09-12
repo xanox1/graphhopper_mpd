@@ -32,32 +32,58 @@ docker build -t graphhopper:latest .
 
 ### Using Pre-built Image from GHCR
 
-To run the GraphHopper service with your own OpenStreetMap data using the pre-built image:
+To run the GraphHopper service with Netherlands OSM data using the pre-built image:
 
 ```bash
-# Download OSM data (example with Monaco)
-wget http://download.geofabrik.de/europe/monaco-latest.osm.pbf
+# Download Netherlands OSM data
+wget http://download.geofabrik.de/europe/netherlands-latest.osm.pbf
 
-# Run the container with OSM data mounted
+# Create a directory for the GraphHopper volume
+mkdir -p graphhopper-data
+mv netherlands-latest.osm.pbf graphhopper-data/
+
+# Run the container with GraphHopper volume mounted
 docker run -d \
   -p 8989:8989 \
-  -v $(pwd)/monaco-latest.osm.pbf:/app/data.osm.pbf \
-  -e JAVA_OPTS="-Xmx2g -Xms2g -Ddw.graphhopper.datareader.file=/app/data.osm.pbf" \
+  -v $(pwd)/graphhopper-data:/app/graphhopper \
   ghcr.io/xanox1/graphhopper_mpd:latest
 ```
 
 ### Using Locally Built Image
 
 ```bash
-# Download OSM data (example with Monaco)
-wget http://download.geofabrik.de/europe/monaco-latest.osm.pbf
+# Download Netherlands OSM data
+wget http://download.geofabrik.de/europe/netherlands-latest.osm.pbf
 
-# Run the container with OSM data mounted
+# Create a directory for the GraphHopper volume
+mkdir -p graphhopper-data
+mv netherlands-latest.osm.pbf graphhopper-data/
+
+# Run the container with GraphHopper volume mounted
 docker run -d \
   -p 8989:8989 \
-  -v $(pwd)/monaco-latest.osm.pbf:/app/data.osm.pbf \
-  -e JAVA_OPTS="-Xmx2g -Xms2g -Ddw.graphhopper.datareader.file=/app/data.osm.pbf" \
+  -v $(pwd)/graphhopper-data:/app/graphhopper \
   graphhopper:latest
+```
+
+### Using Different OSM Data
+
+If you want to use a different OSM file, you can override the default configuration:
+
+```bash
+# Download your preferred OSM data (example with Monaco)
+wget http://download.geofabrik.de/europe/monaco-latest.osm.pbf
+
+# Create a directory for the GraphHopper volume
+mkdir -p graphhopper-data
+mv monaco-latest.osm.pbf graphhopper-data/
+
+# Run the container with custom data file
+docker run -d \
+  -p 8989:8989 \
+  -v $(pwd)/graphhopper-data:/app/graphhopper \
+  -e JAVA_OPTS="-Xmx2g -Xms2g -Ddw.graphhopper.datareader.file=/app/graphhopper/monaco-latest.osm.pbf" \
+  ghcr.io/xanox1/graphhopper_mpd:latest
 ```
 
 The service will be available at http://localhost:8989
@@ -87,7 +113,9 @@ The script will check:
 
 - The container uses `/app/config.yml` as the default configuration
 - Mount your own config file to override: `-v /path/to/your/config.yml:/app/config.yml`
-- Graph data is stored in `/app/graph-cache`
+- OSM data and graph cache are stored in the `/app/graphhopper` volume
+- By default, the container expects `netherlands-latest.osm.pbf` in the graphhopper volume
+- Graph data cache is stored in `/app/graph-cache`
 - Set JVM options via the `JAVA_OPTS` environment variable
 
 ## Memory Requirements
