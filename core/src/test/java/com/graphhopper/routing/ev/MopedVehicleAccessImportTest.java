@@ -38,11 +38,11 @@ class MopedVehicleAccessImportTest {
         assertNotNull(encodedValue, "EncodedValue should not be null");
         assertTrue(encodedValue instanceof BooleanEncodedValue, 
             "EncodedValue should be BooleanEncodedValue, but was: " + encodedValue.getClass().getSimpleName());
-        assertEquals("moped_access", encodedValue.getName());
+        assertEquals("moped_vehicle_access", encodedValue.getName());
     }
 
     @Test
     void testMopedAccessKey() {
-        assertEquals("moped_access", VehicleAccess.key("moped"));
+        assertEquals("moped_vehicle_access", VehicleAccess.key("moped"));
     }
 }

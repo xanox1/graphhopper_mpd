@@ -1,0 +1,1 @@
+import com.graphhopper.routing.ev.VehicleAccess; class Test { public static void main(String[] args) { System.out.println(VehicleAccess.key("car")); System.out.println(VehicleAccess.key("bike")); System.out.println(VehicleAccess.key("moped")); } }

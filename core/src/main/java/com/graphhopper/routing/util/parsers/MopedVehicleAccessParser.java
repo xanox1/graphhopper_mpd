@@ -20,6 +20,7 @@ package com.graphhopper.routing.util.parsers;
 import com.graphhopper.reader.ReaderWay;
 import com.graphhopper.routing.ev.BooleanEncodedValue;
 import com.graphhopper.routing.ev.EncodedValueLookup;
+import com.graphhopper.routing.ev.VehicleAccess;
 import com.graphhopper.routing.util.TransportationMode;
 import com.graphhopper.routing.util.WayAccess;
 import com.graphhopper.util.PMap;
@@ -34,7 +35,7 @@ public class MopedVehicleAccessParser extends CarAccessParser {
 
     public MopedVehicleAccessParser(EncodedValueLookup lookup, PMap properties) {
         this(
-                lookup.getBooleanEncodedValue("moped_access"),
+                lookup.getBooleanEncodedValue(VehicleAccess.key("moped")),
                 lookup.getBooleanEncodedValue("roundabout"),
                 properties,
                 OSMRoadAccessParser.toOSMRestrictions(TransportationMode.CAR)
