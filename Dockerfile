@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy the GraphHopper web service JAR file
 COPY web/target/graphhopper-web-*.jar graphhopper-web.jar
 
-# Copy the example configuration file
-COPY config-example.yml config.yml
+# Copy the Docker-specific configuration file
+COPY config-docker.yml config.yml
 
 # Create directory for graph data
 RUN mkdir -p /app/graph-cache

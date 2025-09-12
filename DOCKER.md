@@ -12,14 +12,6 @@ The GitHub Action in `.github/workflows/docker-build.yml` automatically builds a
 
 Images are available at `ghcr.io/xanox1/graphhopper_mpd`.
 
-### Using Pre-built Images
-
-Pull the latest image from GHCR:
-
-```bash
-docker pull ghcr.io/xanox1/graphhopper_mpd:latest
-```
-
 ### Building Manually
 
 To build manually:
@@ -31,6 +23,8 @@ mvn clean package -DskipTests
 # Build the Docker image
 docker build -t graphhopper:latest .
 ```
+
+**Note**: The Dockerfile uses a Docker-specific configuration (`config-docker.yml`) that binds the server to `0.0.0.0` instead of `localhost` to allow external connections to the container.
 
 ## Running the Container
 
@@ -65,6 +59,27 @@ docker run -d \
 ```
 
 The service will be available at http://localhost:8989
+
+## Verification
+
+To verify your Docker deployment is working correctly, use the provided verification script:
+
+```bash
+# Basic verification
+./verify-deployment.sh
+
+# Verify specific container
+./verify-deployment.sh my-graphhopper-container
+
+# Verify remote deployment
+./verify-deployment.sh graphhopper your-server.com 8989
+```
+
+The script will check:
+- Container is running
+- Health endpoints are responding
+- API endpoints are accessible  
+- Container logs for errors
 
 ## Configuration
 
