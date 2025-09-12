@@ -115,7 +115,7 @@ The script will check:
 - Mount your own config file to override: `-v /path/to/your/config.yml:/app/config.yml`
 - OSM data and graph cache are stored in the `/app/graphhopper` volume
 - By default, the container expects `netherlands-latest.osm.pbf` in the graphhopper volume
-- Graph data cache is stored in `/app/graph-cache`
+- Graph data cache is stored in `/app/graphhopper/graph-cache` (persisted on the mounted volume)
 - Set JVM options via the `JAVA_OPTS` environment variable
 
 ## Memory Requirements
