@@ -12,7 +12,7 @@
 docker-volume-config/
 ├── config.yml                    # Main GraphHopper configuration file
 ├── custom_models/                # Directory for custom vehicle models
-│   └── moped_nl_model.json       # Netherlands moped custom model
+│   └── moped_nl_model.json       # Complex Netherlands moped routing model
 └── README.md                     # This file
 ```
 
