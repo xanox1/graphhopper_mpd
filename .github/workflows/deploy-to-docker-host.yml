@@ -23,6 +23,13 @@ jobs:
         github.event.workflow_run.head_branch == 'master'))
 
     steps:
+      - name: Set up environment
+        run: |
+          echo "Setting up environment variables and configuration"
+          echo "GITHUB_TOKEN_SET=$([ -n '${{ secrets.GITHUB_TOKEN }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
+          echo "DOCKER_HOST_SET=$([ -n '${{ secrets.DOCKER_HOST }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
+          echo "SSH_KEY_SET=$([ -n '${{ secrets.SSH_PRIVATE_KEY }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
+
       - name: Deploy to Docker Host
         uses: appleboy/ssh-action@v1.0.3
         env:
