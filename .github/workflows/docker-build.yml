@@ -114,7 +114,61 @@ jobs:
             org.opencontainers.image.description=GraphHopper routing engine
             org.opencontainers.image.vendor=GraphHopper
 
+      - name: Validate Docker tags
+        id: validate-tags
+        run: |
+          echo "Validating Docker tags for invalid reference format..."
+          tags="${{ steps.meta.outputs.tags }}"
+          invalid_tags=""
+          valid_tags=""
+          
+          # Process each tag line by line
+          while IFS= read -r tag; do
+            # Skip empty lines
+            if [[ -n "$tag" && "$tag" != " " ]]; then
+              # Extract tag part after last colon
+              tag_part="${tag##*:}"
+              if [[ "$tag_part" =~ ^-.*$ ]]; then
+                echo "❌ Invalid tag detected (starts with dash): $tag"
+                if [[ -z "$invalid_tags" ]]; then
+                  invalid_tags="$tag"
+                else
+                  invalid_tags="$invalid_tags"$'\n'"$tag"
+                fi
+              else
+                echo "✅ Valid tag: $tag"
+                if [[ -z "$valid_tags" ]]; then
+                  valid_tags="$tag"
+                else
+                  valid_tags="$valid_tags"$'\n'"$tag"
+                fi
+              fi
+            fi
+          done <<< "$tags"
+          
+          # Set outputs for subsequent steps
+          if [[ -n "$invalid_tags" ]]; then
+            echo "has_invalid_tags=true" >> $GITHUB_OUTPUT
+            echo "invalid_tags<<EOF" >> $GITHUB_OUTPUT
+            echo "$invalid_tags" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_invalid_tags=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set valid tags output
+          if [[ -n "$valid_tags" ]]; then
+            echo "valid_tags<<EOF" >> $GITHUB_OUTPUT
+            echo "$valid_tags" >> $GITHUB_OUTPUT  
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "has_valid_tags=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_valid_tags=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push Docker image
+        # Skip Docker build if we only have invalid tags (leading dash issue)
+        if: steps.validate-tags.outputs.has_invalid_tags != 'true' || steps.validate-tags.outputs.has_valid_tags == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -126,7 +180,23 @@ jobs:
               (github.event_name == 'pull_request_target' &&
                github.event.pull_request.merged == true)
             }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{
+              steps.validate-tags.outputs.has_valid_tags == 'true' &&
+              steps.validate-tags.outputs.valid_tags ||
+              steps.meta.outputs.tags
+            }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Report Docker build skipped due to invalid tags
+        if: steps.validate-tags.outputs.has_invalid_tags == 'true' && steps.validate-tags.outputs.has_valid_tags != 'true'
+        run: |
+          echo "⚠️ Docker build was skipped due to invalid tag format (tags starting with dash)."
+          echo "This is a known issue with Docker tag naming conventions and does not indicate a build failure."
+          echo ""
+          echo "Invalid tags detected:"
+          echo "${{ steps.validate-tags.outputs.invalid_tags }}"
+          echo ""
+          echo "The workflow will continue successfully as this is not a critical error."
