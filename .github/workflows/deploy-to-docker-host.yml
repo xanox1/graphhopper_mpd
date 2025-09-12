@@ -52,10 +52,11 @@ jobs:
             docker stop graphhopper || true
             docker rm graphhopper || true
 
-            # Run the new container
+            # Run the new container with persistent volume
             docker run -d \
               --name graphhopper \
               -p 8989:8989 \
+              -v graphhopper:/app/graphhopper \
               --restart unless-stopped \
               ghcr.io/$GITHUB_REPOSITORY:latest
 
