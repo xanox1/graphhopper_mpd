@@ -29,13 +29,15 @@ class MopedVehicleAccessImportTest {
         DefaultImportRegistry registry = new DefaultImportRegistry();
         ImportUnit unit = registry.createImportUnit(VehicleAccess.key("moped"));
         
-        assertNotNull(unit);
-        assertNotNull(unit.getCreateEncodedValue());
-        assertNotNull(unit.getCreateTagParser());
+        assertNotNull(unit, "ImportUnit should not be null for moped access");
+        assertNotNull(unit.getCreateEncodedValue(), "CreateEncodedValue function should not be null");
+        assertNotNull(unit.getCreateTagParser(), "CreateTagParser function should not be null");
         
         // Test that the encoded value is properly created
         EncodedValue encodedValue = unit.getCreateEncodedValue().apply(new PMap());
-        assertTrue(encodedValue instanceof BooleanEncodedValue);
+        assertNotNull(encodedValue, "EncodedValue should not be null");
+        assertTrue(encodedValue instanceof BooleanEncodedValue, 
+            "EncodedValue should be BooleanEncodedValue, but was: " + encodedValue.getClass().getSimpleName());
         assertEquals("moped_access", encodedValue.getName());
     }
 
