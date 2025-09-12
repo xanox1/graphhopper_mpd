@@ -10,10 +10,7 @@ COPY web/target/graphhopper-web-*.jar graphhopper-web.jar
 # Copy the Docker-specific configuration file
 COPY config-docker.yml config.yml
 
-# Create directory for graph data
-RUN mkdir -p /app/graph-cache
-
-# Create directory for graphhopper volume
+# Create directory for graphhopper volume (graph-cache will be created within this)
 RUN mkdir -p /app/graphhopper
 
 # Define volume for GraphHopper data
