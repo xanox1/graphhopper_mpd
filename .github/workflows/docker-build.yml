@@ -25,8 +25,18 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
+      PLAYWRIGHT_TOKEN: ${{ secrets.PLAYWRIGHT_TOKEN }}
 
     steps:
+      - name: Debug token presence
+        run: |
+          echo "GITHUB_TOKEN length: $(echo $GITHUB_TOKEN | wc -c)"
+          echo "MCP_TOKEN length: $(echo $MCP_TOKEN | wc -c)"
+          echo "PLAYWRIGHT_TOKEN length: $(echo $PLAYWRIGHT_TOKEN | wc -c)"
+          
       - name: Set up environment and security context
         run: |
           echo "Setting up Docker build environment"

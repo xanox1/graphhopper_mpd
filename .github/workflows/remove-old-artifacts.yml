@@ -3,14 +3,25 @@ on:
   schedule:
     - cron: '0 3 1 * *' # Every 1st of the month at 3am
   workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  packages: write
+
 jobs:
   remove-old-artifacts:
     if: github.repository_owner == 'graphhopper'
     name: Remove old artifacts
     runs-on: ubuntu-latest
     timeout-minutes: 10 # stop the task if it takes longer
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
+    - name: Debug token presence
+      run: 'echo "GITHUB_TOKEN length: $(echo $GITHUB_TOKEN | wc -c)"'
+      
     - name: Remove old artifacts
       uses: c-hive/gha-remove-artifacts@v1.3.0
       with:
@@ -23,8 +34,13 @@ jobs:
     name: Remove old artifacts
     runs-on: ubuntu-latest
     timeout-minutes: 10 # stop the task if it takes longer
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
+    - name: Debug token presence
+      run: 'echo "GITHUB_TOKEN length: $(echo $GITHUB_TOKEN | wc -c)"'
+      
     - name: Remove old artifacts 2.1
       uses: actions/delete-package-versions@v4.1.1
       with:
@@ -51,8 +67,13 @@ jobs:
     name: Remove old artifacts 3
     runs-on: ubuntu-latest
     timeout-minutes: 10 # stop the task if it takes longer
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
+    - name: Debug token presence
+      run: 'echo "GITHUB_TOKEN length: $(echo $GITHUB_TOKEN | wc -c)"'
+      
     - name: Remove old artifacts 3.1
       uses: SmartsquareGmbH/delete-old-packages@v0.7.0
       with:

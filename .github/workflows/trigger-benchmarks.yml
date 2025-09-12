@@ -1,11 +1,22 @@
 name: Trigger Benchmarks
 on: push
+
+permissions:
+  contents: write
+  actions: write
+
 jobs:
   trigger_measurement:
     if: github.repository_owner == 'graphhopper'
     runs-on: ubuntu-latest
     environment: benchmarks
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
     steps:
+      - name: Debug token presence
+        run: 'echo "GITHUB_TOKEN length: $(echo $GITHUB_TOKEN | wc -c)"'
+        
       - name: Set up environment for benchmarks
         run: |
           echo "Setting up benchmark trigger environment"

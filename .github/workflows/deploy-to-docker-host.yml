@@ -30,6 +30,9 @@ jobs:
           echo "DOCKER_HOST_SET=$([ -n '${{ secrets.DOCKER_HOST }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
           echo "SSH_KEY_SET=$([ -n '${{ secrets.SSH_PRIVATE_KEY }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
 
+      - name: Debug token presence
+        run: 'echo "GITHUB_TOKEN length: $(echo ${{ secrets.GITHUB_TOKEN }} | wc -c)"'
+
       - name: Deploy to Docker Host
         uses: appleboy/ssh-action@v1.0.3
         env:
