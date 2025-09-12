@@ -1,14 +1,3 @@
-// This custom model creates a moped vehicle profile optimized for Netherlands routing.
-// It includes Netherlands-specific speed limits and access rules for moped vehicles.
-// Mopeds in Netherlands have specific regulations regarding cycleway access and speed limits.
-//
-// To use this custom model you need to set the following in config.yml:
-// graph.encoded_values: moped_access, car_average_speed, road_access, road_class
-// profiles:
-//    - name: moped_nl
-//      weighting: custom
-//      custom_model_files: [moped_nl_model.json]
-
 {
   "distance_influence": 90,
   "priority": [
