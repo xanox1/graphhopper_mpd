@@ -104,11 +104,11 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha,prefix=master-,enable={{is_default_branch}}
+            type=sha,prefix=master-,enable=${{ github.ref_name == 'master' }}
             type=sha,prefix=branch-,enable=${{
-              github.event_name == 'push' && !is_default_branch
+              github.event_name == 'push' && github.ref_name != 'master'
             }}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref_name == 'master' }}
           labels: |
             org.opencontainers.image.title=GraphHopper
             org.opencontainers.image.description=GraphHopper routing engine
