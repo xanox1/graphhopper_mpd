@@ -29,12 +29,6 @@ graphhopper:
   # profiles (see below). Or at least limit the number of `routing.max_visited_nodes`.
 
   profiles:
-   - name: car
-#     turn_costs:
-#       vehicle_types: [motorcar, motor_vehicle]
-#       u_turn_costs: 60
-#     for more advanced turn costs, see #2957 or bike_tc.yml
-     custom_model_files: [car.json]
    - name: moped_nl
      custom_model_files: [moped_nl_model.json]
 
@@ -80,7 +74,7 @@ graphhopper:
   # profiles with `turn_costs` a more elaborate preparation is required (longer preparation time and more memory
   # usage) and the routing will also be slower than with `turn_costs: false`.
   profiles_ch:
-    - profile: car
+    - profile: moped_nl
 
   # Hybrid mode:
   # Similar to speed mode, the hybrid mode (Landmarks, LM) also speeds up routing by doing calculating auxiliary data
@@ -103,7 +97,7 @@ graphhopper:
   #   country,curvature,average_slope,max_slope,car_temporal_access,bike_temporal_access,foot_temporal_access
   # Private roads are blocked by default to disable this you can specify (also applies to other access encoded values like bike_access):
   #   car_access|block_private=false
-  graph.encoded_values: car_access, car_average_speed, road_access, moped_access, road_class
+  graph.encoded_values: car_average_speed, road_access, moped_access, road_class
 
   #### Speed, hybrid and flexible mode ####
 
