@@ -51,9 +51,15 @@ fi
 # Start server in background and test moped_nl profile
 print_status $YELLOW "Step 4: Testing server startup with moped_nl profile..."
 
+# Find the web JAR file, ensuring exactly one match
+JAR_FILES=(web/target/graphhopper-web-*.jar)
+if [ "${#JAR_FILES[@]}" -ne 1 ] || [ ! -f "${JAR_FILES[0]}" ]; then
+    print_status $RED "✗ Expected exactly one graphhopper-web-*.jar file in web/target, found ${#JAR_FILES[@]}"
+    exit 1
+fi
 # Start server in background
 java -Ddw.graphhopper.datareader.file=core/files/andorra.osm.pbf \
-     -jar web/target/graphhopper-web-*.jar server config-example.yml >/dev/null 2>&1 &
+     -jar "${JAR_FILES[0]}" server config-example.yml >/dev/null 2>&1 &
 SERVER_PID=$!
 
 # Function to cleanup server
