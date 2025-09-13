@@ -35,6 +35,8 @@ graphhopper:
 #       u_turn_costs: 60
 #     for more advanced turn costs, see #2957 or bike_tc.yml
      custom_model_files: [car.json]
+   - name: moped_nl
+     custom_model_files: [moped_nl_model.json]
 
 #   You can use the following in-built profiles. After you start GraphHopper it will print which encoded values you'll have to add to graph.encoded_values in this config file.
 #
@@ -101,7 +103,7 @@ graphhopper:
   #   country,curvature,average_slope,max_slope,car_temporal_access,bike_temporal_access,foot_temporal_access
   # Private roads are blocked by default to disable this you can specify (also applies to other access encoded values like bike_access):
   #   car_access|block_private=false
-  graph.encoded_values: car_access, car_average_speed, road_access
+  graph.encoded_values: car_access, car_average_speed, road_access, moped_access, road_class
 
   #### Speed, hybrid and flexible mode ####
 
