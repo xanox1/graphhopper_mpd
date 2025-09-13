@@ -3,7 +3,8 @@
 // Unlike cars/motorcycles, mopeds can legally use some cycleways.
 //
 // To use this custom model you need to set the following in config.yml:
-// graph.encoded_values: moped_access, car_average_speed, road_access
+// graph.encoded_values: moped_access (enum), car_average_speed, road_access
+// Note: 'moped_access' is an enum encoded value; expressions below use its enum values (e.g., MISSING, NO).
 // profiles:
 //    - name: moped
 //      custom_model_files: [moped.json]
