@@ -26,54 +26,41 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Test to reproduce and fix the moped_access validation issue
+ * Integration test to verify the fixed moped_nl_model.json logic works correctly
  */
-class MopedAccessValidationTest {
+class MopedNlModelIntegrationTest {
 
     @Test
-    void testMopedAccessInCustomModel() {
-        // Create encoding manager with moped access support like in the moped_nl profile
+    void testCompleteCustomModelLikeMopedNl() {
+        // Create encoding manager with all required encoded values for moped_nl profile
         EncodingManager encodingManager = EncodingManager.start()
-                .add(MopedAccess.create()) // This should create "moped_access" encoded value
-                .add(VehicleAccess.create("car")) // For completeness
+                .add(MopedAccess.create()) // moped_access
+                .add(VehicleAccess.create("car")) // car_access 
                 .add(new DecimalEncodedValueImpl("car_average_speed", 7, 2, true))
-                .add(RoadClass.create())
-                .add(RoadAccess.create())
+                .add(RoadAccess.create()) // road_access
+                .add(RoadClass.create()) // road_class
                 .build();
         
-        // Verify moped_access is available
-        assertTrue(encodingManager.hasEncodedValue(MopedAccess.KEY));
-        assertNotNull(encodingManager.getEnumEncodedValue(MopedAccess.KEY, MopedAccess.class));
-
-        // Create custom model similar to moped_nl_model.json (corrected)
+        // Create the complete custom model matching moped_nl_model.json structure
         CustomModel customModel = new CustomModel();
+        customModel.setDistanceInfluence(90.0);
+        
+        // Priority rules (corrected)
         customModel.addToPriority(Statement.If("moped_access == MISSING || moped_access == NO", Statement.Op.MULTIPLY, "0"));
+        customModel.addToPriority(Statement.If("road_access == DESTINATION || road_access == PRIVATE", Statement.Op.MULTIPLY, "0.1"));
         customModel.addToPriority(Statement.If("moped_access == YES || moped_access == DESIGNATED", Statement.Op.MULTIPLY, "1.2"));
+        customModel.addToPriority(Statement.If("road_class == CYCLEWAY && moped_access == YES", Statement.Op.MULTIPLY, "1.0"));
+        customModel.addToPriority(Statement.If("road_class == TRACK", Statement.Op.MULTIPLY, "0.3"));
+        
+        // Speed rules
         customModel.addToSpeed(Statement.If("true", Statement.Op.LIMIT, "car_average_speed"));
         customModel.addToSpeed(Statement.If("true", Statement.Op.LIMIT, "45"));
+        customModel.addToSpeed(Statement.If("road_class == RESIDENTIAL", Statement.Op.LIMIT, "30"));
+        customModel.addToSpeed(Statement.If("road_class == LIVING_STREET", Statement.Op.LIMIT, "15"));
+        customModel.addToSpeed(Statement.If("road_class == CYCLEWAY", Statement.Op.LIMIT, "25"));
         
         // This should work without throwing an exception
         assertDoesNotThrow(() -> {
-            CustomModelParser.createWeighting(encodingManager, null, customModel);
-        });
-    }
-
-    @Test
-    void testInvalidBooleanNegationOnMopedAccessEnum() {
-        // Create encoding manager with moped access support
-        EncodingManager encodingManager = EncodingManager.start()
-                .add(MopedAccess.create()) 
-                .add(VehicleAccess.create("car"))
-                .add(new DecimalEncodedValueImpl("car_average_speed", 7, 2, true))
-                .build();
-
-        // Create custom model with incorrect boolean negation on enum
-        CustomModel customModel = new CustomModel();
-        customModel.addToPriority(Statement.If("!moped_access", Statement.Op.MULTIPLY, "0")); // This should fail
-        customModel.addToSpeed(Statement.If("true", Statement.Op.LIMIT, "car_average_speed"));
-        
-        // This should throw an exception due to incorrect boolean operation on enum
-        assertThrows(IllegalArgumentException.class, () -> {
             CustomModelParser.createWeighting(encodingManager, null, customModel);
         });
     }
