@@ -22,7 +22,7 @@ on:
 
 jobs:
   test-live-deployment:
-    runs-on: ubuntu-latest
+    runs-on: gitdocker
     permissions:
       contents: read
       packages: read
