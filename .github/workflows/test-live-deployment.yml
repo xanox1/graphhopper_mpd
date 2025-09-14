@@ -133,31 +133,87 @@ jobs:
             
             # 4. Test info endpoint and verify moped profile
             print_status $YELLOW "4. Testing info endpoint and moped profile..."
-            if curl -f -s --max-time 10 http://localhost:${SERVER_PORT}/info > /dev/null; then
-                INFO_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/info)
-                VERSION=$(echo "$INFO_RESPONSE" | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
-                print_status $GREEN "✅ Info endpoint responding. GraphHopper version: $VERSION"
-                
-                # Check if moped_nl profile is available
-                if echo "$INFO_RESPONSE" | jq -e '.profiles[] | select(.name == "moped_nl")' >/dev/null 2>&1; then
-                    print_status $GREEN "✅ moped_nl profile is available"
+            
+            # Multiple attempts to handle potential network/timing issues
+            INFO_RESPONSE=""
+            for attempt in 1 2 3; do
+                if curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info > /dev/null; then
+                    INFO_RESPONSE=$(curl -s --max-time 15 http://localhost:${SERVER_PORT}/info)
+                    if [ -n "$INFO_RESPONSE" ] && echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
+                        break
+                    else
+                        print_status $YELLOW "Attempt $attempt: Invalid JSON response, retrying..."
+                        sleep 2
+                    fi
                 else
-                    print_status $RED "❌ moped_nl profile is NOT available"
-                    print_status $YELLOW "Available profiles:"
-                    echo "$INFO_RESPONSE" | jq '.profiles[].name' 2>/dev/null || echo "Could not parse profiles"
-                    exit 1
+                    print_status $YELLOW "Attempt $attempt: Info endpoint not responding, retrying..."
+                    sleep 2
                 fi
                 
-                # Check if moped_access encoded value is available
-                if echo "$INFO_RESPONSE" | jq -e '.encoded_values.moped_access' >/dev/null 2>&1; then
-                    MOPED_ACCESS_VALUES=$(echo "$INFO_RESPONSE" | jq -r '.encoded_values.moped_access | join(", ")')
-                    print_status $GREEN "✅ moped_access encoded value available: [$MOPED_ACCESS_VALUES]"
-                else
-                    print_status $RED "❌ moped_access encoded value is NOT available"
+                if [ $attempt -eq 3 ]; then
+                    print_status $RED "❌ Info endpoint failed after 3 attempts"
                     exit 1
                 fi
+            done
+            
+            # Parse version safely
+            VERSION=$(echo "$INFO_RESPONSE" | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+            print_status $GREEN "✅ Info endpoint responding. GraphHopper version: $VERSION"
+            
+            # Debug: Show raw response size and structure
+            RESPONSE_SIZE=$(echo "$INFO_RESPONSE" | wc -c)
+            print_status $YELLOW "Response size: ${RESPONSE_SIZE} characters"
+            
+            # Debug: Show profiles structure
+            print_status $YELLOW "Profiles structure in response:"
+            echo "$INFO_RESPONSE" | jq '.profiles' 2>/dev/null || print_status $RED "Could not parse profiles JSON"
+            
+            # Check if moped_nl profile is available using multiple approaches
+            MOPED_PROFILE_FOUND="false"
+            
+            # Method 1: Direct jq selection
+            if echo "$INFO_RESPONSE" | jq -e '.profiles[] | select(.name == "moped_nl")' >/dev/null 2>&1; then
+                print_status $GREEN "✅ moped_nl profile found (method 1: jq select)"
+                MOPED_PROFILE_FOUND="true"
+            fi
+            
+            # Method 2: Extract all profile names and grep
+            if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
+                PROFILE_NAMES=$(echo "$INFO_RESPONSE" | jq -r '.profiles[].name' 2>/dev/null || echo "")
+                if echo "$PROFILE_NAMES" | grep -q "^moped_nl$"; then
+                    print_status $GREEN "✅ moped_nl profile found (method 2: grep names)"
+                    MOPED_PROFILE_FOUND="true"
+                fi
+            fi
+            
+            # Method 3: Check if profiles array contains moped_nl
+            if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
+                if echo "$INFO_RESPONSE" | jq -r '.profiles | map(.name) | contains(["moped_nl"])' 2>/dev/null | grep -q "true"; then
+                    print_status $GREEN "✅ moped_nl profile found (method 3: contains check)"
+                    MOPED_PROFILE_FOUND="true"
+                fi
+            fi
+            
+            # Final check result
+            if [ "$MOPED_PROFILE_FOUND" = "true" ]; then
+                print_status $GREEN "✅ moped_nl profile is available"
             else
-                print_status $RED "❌ Info endpoint not responding"
+                print_status $RED "❌ moped_nl profile is NOT available"
+                print_status $YELLOW "Available profiles:"
+                echo "$INFO_RESPONSE" | jq '.profiles' 2>/dev/null || echo "Could not parse profiles"
+                print_status $YELLOW "Profile names extracted:"
+                echo "$INFO_RESPONSE" | jq -r '.profiles[].name' 2>/dev/null || echo "Could not extract profile names"
+                exit 1
+            fi
+            
+            # Check if moped_access encoded value is available
+            if echo "$INFO_RESPONSE" | jq -e '.encoded_values.moped_access' >/dev/null 2>&1; then
+                MOPED_ACCESS_VALUES=$(echo "$INFO_RESPONSE" | jq -r '.encoded_values.moped_access | join(", ")' 2>/dev/null || echo "Could not join values")
+                print_status $GREEN "✅ moped_access encoded value available: [$MOPED_ACCESS_VALUES]"
+            else
+                print_status $RED "❌ moped_access encoded value is NOT available"
+                print_status $YELLOW "Available encoded values:"
+                echo "$INFO_RESPONSE" | jq '.encoded_values | keys' 2>/dev/null || echo "Could not parse encoded values"
                 exit 1
             fi
             
