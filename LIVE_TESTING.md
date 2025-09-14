@@ -5,10 +5,11 @@ This directory contains scripts and workflows for testing GraphHopper servers, b
 ## Files
 
 ### `.github/workflows/test-live-deployment.yml`
-GitHub Action workflow that can test both local deployments and external endpoints. Features include:
+GitHub Action workflow that tests GraphHopper endpoints with focus on external validation. Features include:
 
-- **Local deployment testing**: Automatically runs after successful deployment to test the live server on the docker host
-- **External endpoint testing**: Can be manually triggered to test any GraphHopper endpoint (e.g., `https://graphhopper.xanox.org`)
+- **External endpoint testing**: Defaults to testing `https://graphhopper.xanox.org` automatically
+- **Local deployment testing**: Can test local server by setting `test_endpoint` to "localhost"
+- **Custom endpoint testing**: Can be configured to test any GraphHopper endpoint
 - Container status and health checks (local only)
 - Server endpoint validation
 - Moped profile availability verification
@@ -50,17 +51,23 @@ Standalone script that can test both local containers and remote endpoints with 
 
 ## Testing Scenarios
 
-### 1. Automatic Local Testing (GitHub Action)
+### 1. Automatic External Testing (GitHub Action)
+- **Default behavior**: Tests the production endpoint `https://graphhopper.xanox.org` automatically
 - Triggers automatically after successful deployment
-- Tests the deployed container on the docker host
 - Reports results in GitHub Actions UI
+- Validates live production endpoint functionality
+
+### 2. Manual Local Testing (GitHub Action)
+- Set `test_endpoint` to "localhost" to test deployed containers
+- Tests the deployed container on the docker host via SSH
+- Useful for validating local deployments
 - Fails the workflow if any tests fail
 
-### 2. Manual External Endpoint Testing (GitHub Action)
-- Manually triggered via workflow_dispatch
+### 3. Manual Custom Endpoint Testing (GitHub Action)
+- Manually triggered via workflow_dispatch with custom `test_endpoint`
 - Can test any external GraphHopper endpoint
 - Runs directly on GitHub Actions runner (no SSH required)
-- Useful for validating live production endpoints
+- Useful for validating different environments
 
 ### 3. Manual Local Testing (Shell Script)
 - Run directly on the docker host
@@ -128,11 +135,11 @@ The GitHub Action workflow integrates with the existing deployment pipeline:
 - Can prevent broken deployments from going unnoticed
 
 ### External Endpoint Validation
-The workflow can be manually triggered to validate external endpoints:
-- No SSH or deployment dependencies
+The workflow automatically tests the production endpoint `https://graphhopper.xanox.org`:
+- No manual triggering required for production testing
 - Runs directly on GitHub Actions infrastructure
-- Can validate any publicly accessible GraphHopper endpoint
-- Useful for monitoring production endpoints
+- Validates production endpoint after each deployment
+- Can be overridden to test custom endpoints when needed
 
 ## Monitoring Route Quality
 

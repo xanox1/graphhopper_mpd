@@ -16,7 +16,7 @@ on:
         required: false
         type: string
       test_endpoint:
-        description: 'External endpoint to test (e.g., https://graphhopper.xanox.org)'
+        description: 'Endpoint to test (defaults to https://graphhopper.xanox.org, use "localhost" for local testing)'
         required: false
         type: string
 
@@ -39,19 +39,18 @@ jobs:
         run: |
           echo "Setting up test environment variables"
           echo "TEST_HOST=${{ github.event.inputs.docker_host || secrets.DOCKER_HOST }}" >> $GITHUB_ENV
-          echo "TEST_ENDPOINT=${{ github.event.inputs.test_endpoint }}" >> $GITHUB_ENV
+          echo "TEST_ENDPOINT=${{ github.event.inputs.test_endpoint || 'https://graphhopper.xanox.org' }}" >> $GITHUB_ENV
 
-      - name: Test External Endpoint (if provided)
-        if: github.event.inputs.test_endpoint != ''
+      - name: Test External Endpoint
         run: |
-          echo "Testing external endpoint: ${{ github.event.inputs.test_endpoint }}"
+          echo "Testing external endpoint: ${{ env.TEST_ENDPOINT }}"
           
           # Install dependencies
           sudo apt-get update
           sudo apt-get install -y jq curl
           
           # Test external endpoint health
-          ENDPOINT="${{ github.event.inputs.test_endpoint }}"
+          ENDPOINT="${{ env.TEST_ENDPOINT }}"
           
           echo "Testing health endpoint..."
           if curl -f -s --max-time 10 "${ENDPOINT}/health"; then
@@ -84,8 +83,8 @@ jobs:
           echo "Waiting 30 seconds for deployment to settle..."
           sleep 30
 
-      - name: Test Live Server Deployment
-        if: github.event.inputs.test_endpoint == ''
+      - name: Test Live Server Deployment (localhost)
+        if: env.TEST_ENDPOINT == 'localhost'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.TEST_HOST }}
@@ -241,8 +240,8 @@ jobs:
         run: |
           if [ ${{ job.status }} == 'success' ]; then
             echo "✅ Live deployment tests completed successfully"
-            if [ -n "${{ github.event.inputs.test_endpoint }}" ]; then
-              echo "External GraphHopper endpoint at ${{ github.event.inputs.test_endpoint }} is responding correctly"
+            if [ "${{ env.TEST_ENDPOINT }}" != "localhost" ]; then
+              echo "External GraphHopper endpoint at ${{ env.TEST_ENDPOINT }} is responding correctly"
             else
               echo "Deployed GraphHopper server is working correctly and routing properly avoids Overijsselselaan"
             fi
