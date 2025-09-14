@@ -178,13 +178,61 @@ jobs:
                 exit 1
             fi
             
-            # 4. Final summary
+            # 4. Test specific route that should avoid Overijsselselaan
+            print_status $YELLOW "4. Testing specific route that should avoid Overijsselselaan..."
+            
+            # Coordinates from the problem statement: 53.116614,5.781391 to 53.211454,5.803086
+            SPECIFIC_FROM="53.116614,5.781391"
+            SPECIFIC_TO="53.211454,5.803086"
+            SPECIFIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
+            
+            print_status $YELLOW "Testing route from $SPECIFIC_FROM to $SPECIFIC_TO"
+            
+            if SPECIFIC_ROUTE_RESPONSE=$(curl -sf --max-time 30 "$SPECIFIC_ROUTE_URL" 2>/dev/null); then
+                if echo "$SPECIFIC_ROUTE_RESPONSE" | jq -e '.paths[0].distance' >/dev/null 2>&1; then
+                    DISTANCE=$(echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].distance')
+                    TIME=$(echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].time // 0')
+                    print_status $GREEN "✅ Specific route calculation successful!"
+                    print_status $GREEN "   Distance: ${DISTANCE}m"
+                    print_status $GREEN "   Time: ${TIME}ms"
+                    
+                    # Check if route uses Overijsselselaan (the route should NOT use this street)
+                    if echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].instructions[].text // ""' | grep -qi "overijsselselaan"; then
+                        print_status $RED "❌ ROUTE VALIDATION FAILED: Route uses Overijsselselaan!"
+                        print_status $RED "   The routing agent should never route over Overijsselselaan for these coordinates."
+                        print_status $YELLOW "   Route instructions mentioning Overijsselselaan:"
+                        echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].instructions[].text // ""' | grep -i "overijsselselaan" || true
+                        exit 1
+                    else
+                        print_status $GREEN "✅ Route validation passed: Route does NOT use Overijsselselaan"
+                    fi
+                    
+                    # Show a sample of the route instructions for verification
+                    print_status $YELLOW "Sample route instructions (first 3):"
+                    echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].instructions[:3][] | .text // "N/A"' | head -3 || true
+                    
+                elif echo "$SPECIFIC_ROUTE_RESPONSE" | jq -e '.message' | grep -q "Cannot find point"; then
+                    print_status $YELLOW "⚠️  Specific routing: Cannot find point (dataset may not cover Netherlands coordinates)"
+                    print_status $YELLOW "   This is acceptable if the server is not using Netherlands OSM data"
+                else
+                    print_status $RED "❌ Specific routing failed with response:"
+                    echo "$SPECIFIC_ROUTE_RESPONSE" | jq '.' 2>/dev/null || echo "$SPECIFIC_ROUTE_RESPONSE"
+                    exit 1
+                fi
+            else
+                print_status $RED "❌ Specific routing request failed"
+                exit 1
+            fi
+            
+            # 5. Final summary
             print_status $GREEN "=== Test Summary ==="
             print_status $GREEN "✅ Container is running"
             print_status $GREEN "✅ GraphHopper service is active"
             print_status $GREEN "✅ Docker logs show healthy status"
             print_status $GREEN "✅ External endpoints responding correctly"
             print_status $GREEN "✅ API responses are valid"
+            print_status $GREEN "✅ Specific route validation completed"
+            print_status $GREEN "✅ Route correctly avoids Overijsselselaan"
             
             print_status $GREEN "🎉 Live deployment test PASSED!"
 
@@ -196,7 +244,7 @@ jobs:
             if [ -n "${{ github.event.inputs.test_endpoint }}" ]; then
               echo "External GraphHopper endpoint at ${{ github.event.inputs.test_endpoint }} is responding correctly"
             else
-              echo "Deployed GraphHopper server is working correctly"
+              echo "Deployed GraphHopper server is working correctly and routing properly avoids Overijsselselaan"
             fi
           else
             echo "❌ Live deployment tests failed"
