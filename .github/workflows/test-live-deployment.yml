@@ -15,6 +15,10 @@ on:
         description: 'Docker host to test (uses secret if not provided)'
         required: false
         type: string
+      test_endpoint:
+        description: 'External endpoint to test (e.g., https://graphhopper.xanox.org)'
+        required: false
+        type: string
       test_specific_route:
         description: 'Test the specific route that should avoid Overijsselselaan'
         required: false
@@ -42,6 +46,20 @@ jobs:
           echo "DOCKER_HOST_SET=$([ -n '${{ secrets.DOCKER_HOST }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
           echo "SSH_KEY_SET=$([ -n '${{ secrets.SSH_PRIVATE_KEY }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
           echo "TEST_HOST=${{ github.event.inputs.docker_host || secrets.DOCKER_HOST }}" >> $GITHUB_ENV
+          echo "TEST_ENDPOINT=${{ github.event.inputs.test_endpoint }}" >> $GITHUB_ENV
+
+      - name: Test External Endpoint (if provided)
+        if: github.event.inputs.test_endpoint != ''
+        run: |
+          echo "Testing external endpoint: ${{ github.event.inputs.test_endpoint }}"
+          
+          # Install dependencies
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+          
+          # Test external endpoint directly from GitHub Actions runner
+          chmod +x ./test-live-server.sh
+          ./test-live-server.sh '' '' '' "${{ github.event.inputs.test_endpoint }}"
 
       - name: Wait for deployment to settle
         if: github.event_name == 'workflow_run'
@@ -50,6 +68,7 @@ jobs:
           sleep 30
 
       - name: Test Live Server Deployment
+        if: github.event.inputs.test_endpoint == ''
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.TEST_HOST }}
@@ -313,9 +332,13 @@ jobs:
         run: |
           if [ ${{ job.status }} == 'success' ]; then
             echo "✅ Live deployment tests completed successfully"
-            echo "The deployed GraphHopper server is working correctly and routing properly avoids Overijsselselaan"
+            if [ -n "${{ github.event.inputs.test_endpoint }}" ]; then
+              echo "The external GraphHopper endpoint at ${{ github.event.inputs.test_endpoint }} is working correctly"
+            else
+              echo "The deployed GraphHopper server is working correctly and routing properly avoids Overijsselselaan"
+            fi
           else
             echo "❌ Live deployment tests failed"
-            echo "Check the SSH action output above for detailed error information"
+            echo "Check the test output above for detailed error information"
             exit 1
           fi

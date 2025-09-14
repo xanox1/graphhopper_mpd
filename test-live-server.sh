@@ -2,7 +2,7 @@
 
 # Live GraphHopper Server Test Script
 # This script tests the actual deployed GraphHopper server including specific routing validation
-# Usage: ./test-live-server.sh [container_name] [server_port] [admin_port]
+# Usage: ./test-live-server.sh [container_name] [server_port] [admin_port] [base_url]
 
 set -euo pipefail
 
@@ -10,6 +10,21 @@ set -euo pipefail
 CONTAINER_NAME=${1:-"graphhopper"}
 SERVER_PORT=${2:-"8989"}
 ADMIN_PORT=${3:-"8990"}
+BASE_URL=${4:-"http://localhost"}
+
+# If base URL doesn't include protocol, add http://
+if [[ ! "$BASE_URL" =~ ^https?:// ]]; then
+    BASE_URL="http://$BASE_URL"
+fi
+
+# Remove trailing slash if present
+BASE_URL="${BASE_URL%/}"
+
+# Check if we're testing a remote endpoint (not localhost)
+REMOTE_ENDPOINT=false
+if [[ ! "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
+    REMOTE_ENDPOINT=true
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -65,6 +80,12 @@ check_dependencies() {
 test_container_status() {
     print_section "Container Status Check"
     
+    # Skip container tests if testing remote endpoint
+    if [ "$REMOTE_ENDPOINT" = true ]; then
+        print_status $YELLOW "⏭️  Skipping container checks - testing remote endpoint: $BASE_URL"
+        return 0
+    fi
+    
     if docker ps --filter name=$CONTAINER_NAME --format "table {{.Names}}\t{{.Status}}" | grep -q $CONTAINER_NAME; then
         print_status $GREEN "✅ Container '$CONTAINER_NAME' is running"
         
@@ -86,6 +107,12 @@ test_container_status() {
 # Function to check container logs
 check_container_logs() {
     print_section "Container Logs Analysis"
+    
+    # Skip container logs if testing remote endpoint
+    if [ "$REMOTE_ENDPOINT" = true ]; then
+        print_status $YELLOW "⏭️  Skipping container log checks - testing remote endpoint: $BASE_URL"
+        return 0
+    fi
     
     print_status $YELLOW "Checking recent logs for errors..."
     
@@ -119,14 +146,31 @@ check_container_logs() {
 test_server_endpoints() {
     print_section "Server Endpoint Testing"
     
+    # Build URLs using base URL - if base URL already includes port, don't add it again
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
+        # Base URL already includes port or uses standard ports
+        HEALTH_URL="${BASE_URL}/health"
+        INFO_URL="${BASE_URL}/info"
+    elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
+        # Localhost without port - add the port
+        HEALTH_URL="${BASE_URL}:${SERVER_PORT}/health"
+        INFO_URL="${BASE_URL}:${SERVER_PORT}/info"
+    else
+        # External endpoint - assume port is handled by BASE_URL or use standard ports
+        HEALTH_URL="${BASE_URL}/health"
+        INFO_URL="${BASE_URL}/info"
+    fi
+    
+    print_status $YELLOW "Testing endpoint: $HEALTH_URL"
+    
     # Test health endpoint
     print_status $YELLOW "Testing health endpoint..."
     HEALTH_TIMEOUT=60
     HEALTH_ATTEMPTS=$((HEALTH_TIMEOUT / 5))
     
     for i in $(seq 1 $HEALTH_ATTEMPTS); do
-        if curl -f -s --max-time 10 http://localhost:${SERVER_PORT}/health > /dev/null; then
-            HEALTH_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/health)
+        if curl -f -s --max-time 10 "$HEALTH_URL" > /dev/null; then
+            HEALTH_RESPONSE=$(curl -s --max-time 10 "$HEALTH_URL")
             print_status $GREEN "✅ Health endpoint responding: $HEALTH_RESPONSE"
             break
         else
@@ -140,12 +184,12 @@ test_server_endpoints() {
     done
     
     # Test info endpoint with retry logic
-    print_status $YELLOW "Testing info endpoint..."
+    print_status $YELLOW "Testing info endpoint: $INFO_URL"
     INFO_RESPONSE=""
     
     for attempt in 1 2 3; do
-        if curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info > /dev/null; then
-            INFO_RESPONSE=$(curl -s --max-time 15 http://localhost:${SERVER_PORT}/info)
+        if curl -f -s --max-time 15 "$INFO_URL" > /dev/null; then
+            INFO_RESPONSE=$(curl -s --max-time 15 "$INFO_URL")
             if [ -n "$INFO_RESPONSE" ] && echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
                 break
             else
@@ -169,12 +213,16 @@ test_server_endpoints() {
     print_status $GREEN "   GraphHopper version: $VERSION"
     print_status $GREEN "   Build date: $BUILD_DATE"
     
-    # Test admin endpoint
-    print_status $YELLOW "Testing admin endpoint..."
-    if curl -f -s --max-time 10 http://localhost:${ADMIN_PORT}/healthcheck > /dev/null 2>&1; then
-        print_status $GREEN "✅ Admin endpoint responding on port ${ADMIN_PORT}"
+    # Test admin endpoint only for localhost
+    if [ "$REMOTE_ENDPOINT" = false ]; then
+        print_status $YELLOW "Testing admin endpoint..."
+        if curl -f -s --max-time 10 http://localhost:${ADMIN_PORT}/healthcheck > /dev/null 2>&1; then
+            print_status $GREEN "✅ Admin endpoint responding on port ${ADMIN_PORT}"
+        else
+            print_status $YELLOW "ℹ️  Admin endpoint not accessible (this is normal if not exposed)"
+        fi
     else
-        print_status $YELLOW "ℹ️  Admin endpoint not accessible (this is normal if not exposed)"
+        print_status $YELLOW "⏭️  Skipping admin endpoint test for remote endpoint"
     fi
 }
 
@@ -182,7 +230,16 @@ test_server_endpoints() {
 test_moped_profile() {
     print_section "Moped Profile Validation"
     
-    INFO_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/info)
+    # Build info URL
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
+        INFO_URL="${BASE_URL}/info"
+    elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
+        INFO_URL="${BASE_URL}:${SERVER_PORT}/info"
+    else
+        INFO_URL="${BASE_URL}/info"
+    fi
+    
+    INFO_RESPONSE=$(curl -s --max-time 10 "$INFO_URL")
     
     # Check if moped_nl profile is available using multiple methods for robustness
     MOPED_PROFILE_FOUND="false"
@@ -246,8 +303,16 @@ test_basic_routing() {
     
     print_status $YELLOW "Testing basic moped routing..."
     
-    # Test with generic coordinates that should work with any dataset
-    BASIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
+    # Build route URL
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
+        BASIC_ROUTE_URL="${BASE_URL}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
+    elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
+        BASIC_ROUTE_URL="${BASE_URL}:${SERVER_PORT}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
+    else
+        BASIC_ROUTE_URL="${BASE_URL}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
+    fi
+    
+    print_status $YELLOW "Testing URL: $BASIC_ROUTE_URL"
     
     if BASIC_ROUTE_RESPONSE=$(curl -sf --max-time 30 "$BASIC_ROUTE_URL" 2>/dev/null); then
         if echo "$BASIC_ROUTE_RESPONSE" | jq -e '.paths[0].distance' >/dev/null 2>&1; then
@@ -276,10 +341,19 @@ test_specific_route_validation() {
     # Coordinates from the problem statement: 53.116614,5.781391 to 53.211454,5.803086
     SPECIFIC_FROM="53.116614,5.781391"
     SPECIFIC_TO="53.211454,5.803086"
-    SPECIFIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
+    
+    # Build route URL
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
+        SPECIFIC_ROUTE_URL="${BASE_URL}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
+    elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
+        SPECIFIC_ROUTE_URL="${BASE_URL}:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
+    else
+        SPECIFIC_ROUTE_URL="${BASE_URL}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
+    fi
     
     print_status $YELLOW "Testing route from $SPECIFIC_FROM to $SPECIFIC_TO"
     print_status $YELLOW "This route should NOT use Overijsselselaan"
+    print_status $YELLOW "Testing URL: $SPECIFIC_ROUTE_URL"
     
     if SPECIFIC_ROUTE_RESPONSE=$(curl -sf --max-time 30 "$SPECIFIC_ROUTE_URL" 2>/dev/null); then
         if echo "$SPECIFIC_ROUTE_RESPONSE" | jq -e '.paths[0].distance' >/dev/null 2>&1; then
@@ -328,8 +402,13 @@ run_all_tests() {
     
     # Run each test and track failures
     check_dependencies || failed_tests+=("dependencies")
-    test_container_status || failed_tests+=("container_status")
-    check_container_logs || failed_tests+=("container_logs")
+    
+    # Skip container tests for remote endpoints
+    if [ "$REMOTE_ENDPOINT" = false ]; then
+        test_container_status || failed_tests+=("container_status")
+        check_container_logs || failed_tests+=("container_logs")
+    fi
+    
     test_server_endpoints || failed_tests+=("server_endpoints")
     test_moped_profile || failed_tests+=("moped_profile")
     test_basic_routing || failed_tests+=("basic_routing")
@@ -340,17 +419,29 @@ run_all_tests() {
     
     if [ ${#failed_tests[@]} -eq 0 ]; then
         print_status $GREEN "🎉 ALL TESTS PASSED!"
-        print_status $GREEN "✅ Container is running properly"
-        print_status $GREEN "✅ Server endpoints are responding"
+        if [ "$REMOTE_ENDPOINT" = true ]; then
+            print_status $GREEN "✅ Remote endpoint is responding properly"
+            print_status $GREEN "✅ Server endpoints are accessible"
+        else
+            print_status $GREEN "✅ Container is running properly"
+            print_status $GREEN "✅ Server endpoints are responding"
+        fi
         print_status $GREEN "✅ Moped profile is working correctly"
         print_status $GREEN "✅ Routing functionality is operational"
         print_status $GREEN "✅ Route correctly avoids Overijsselselaan"
         
         print_status $BLUE "GraphHopper Server Information:"
-        print_status $BLUE "🌐 Web UI: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/"
-        print_status $BLUE "📖 API: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/"
-        print_status $BLUE "🔧 Health: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/health"
-        print_status $BLUE "ℹ️  Info: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/info"
+        if [ "$REMOTE_ENDPOINT" = true ]; then
+            print_status $BLUE "🌐 Web UI: ${BASE_URL}/"
+            print_status $BLUE "📖 API: ${BASE_URL}/"
+            print_status $BLUE "🔧 Health: ${BASE_URL}/health"
+            print_status $BLUE "ℹ️  Info: ${BASE_URL}/info"
+        else
+            print_status $BLUE "🌐 Web UI: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/"
+            print_status $BLUE "📖 API: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/"
+            print_status $BLUE "🔧 Health: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/health"
+            print_status $BLUE "ℹ️  Info: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):${SERVER_PORT}/info"
+        fi
         
         return 0
     else
@@ -364,25 +455,33 @@ run_all_tests() {
 show_usage() {
     echo "Live GraphHopper Server Test Script"
     echo ""
-    echo "Usage: $0 [container_name] [server_port] [admin_port]"
+    echo "Usage: $0 [container_name] [server_port] [admin_port] [base_url]"
     echo ""
     echo "Parameters:"
     echo "  container_name    Docker container name (default: graphhopper)"
     echo "  server_port       GraphHopper server port (default: 8989)"
     echo "  admin_port        GraphHopper admin port (default: 8990)"
+    echo "  base_url          Base URL for server endpoints (default: http://localhost)"
     echo ""
     echo "Examples:"
-    echo "  $0                                    # Use defaults"
-    echo "  $0 my-graphhopper 9000 9001          # Custom container and ports"
+    echo "  $0                                            # Test localhost with defaults"
+    echo "  $0 my-graphhopper 9000 9001                  # Custom container and ports"
+    echo "  $0 '' '' '' https://graphhopper.xanox.org    # Test remote endpoint"
+    echo "  $0 graphhopper 8989 8990 http://server:8989  # Custom endpoint with port"
+    echo ""
+    echo "Remote endpoint examples:"
+    echo "  $0 '' '' '' https://graphhopper.xanox.org    # HTTPS endpoint"
+    echo "  $0 '' '' '' http://myserver.com              # HTTP endpoint"
+    echo "  $0 '' '' '' http://192.168.1.100:8989        # IP with custom port"
     echo ""
     echo "This script tests:"
-    echo "  - Container status and logs"
+    echo "  - Container status and logs (localhost only)"
     echo "  - Server health and info endpoints"
     echo "  - Moped profile availability"
     echo "  - Basic routing functionality"
     echo "  - Specific route validation (avoiding Overijsselselaan)"
     echo ""
-    echo "Dependencies: docker, curl, jq"
+    echo "Dependencies: docker (for localhost), curl, jq"
 }
 
 # Main execution
@@ -396,6 +495,8 @@ main() {
     print_status $YELLOW "Container: $CONTAINER_NAME"
     print_status $YELLOW "Server port: $SERVER_PORT"
     print_status $YELLOW "Admin port: $ADMIN_PORT"
+    print_status $YELLOW "Base URL: $BASE_URL"
+    print_status $YELLOW "Remote endpoint: $REMOTE_ENDPOINT"
     
     if run_all_tests; then
         print_status $GREEN "Live server test completed successfully! 🎉"

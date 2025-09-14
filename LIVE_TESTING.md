@@ -1,98 +1,139 @@
 # Live Deployment Testing
 
-This directory contains scripts and workflows for testing the actual live GraphHopper server after deployment to the docker host.
+This directory contains scripts and workflows for testing GraphHopper servers, both local containerized deployments and remote live endpoints.
 
 ## Files
 
 ### `.github/workflows/test-live-deployment.yml`
-GitHub Action workflow that automatically runs after successful deployment to test the live server. It performs comprehensive testing including:
+GitHub Action workflow that can test both local deployments and external endpoints. Features include:
 
-- Container status and health checks
+- **Local deployment testing**: Automatically runs after successful deployment to test the live server on the docker host
+- **External endpoint testing**: Can be manually triggered to test any GraphHopper endpoint (e.g., `https://graphhopper.xanox.org`)
+- Container status and health checks (local only)
 - Server endpoint validation
 - Moped profile availability verification
 - Basic routing functionality testing
 - **Specific route validation**: Tests that routes from `53.116614,5.781391` to `53.211454,5.803086` do NOT use Overijsselselaan
 
 ### `test-live-server.sh`
-Standalone script that can be run manually on the docker host to perform the same comprehensive tests as the GitHub Action.
+Standalone script that can test both local containers and remote endpoints with flexible configuration.
 
 #### Usage:
 ```bash
-# Use defaults (container: graphhopper, ports: 8989/8990)
+# Test localhost with defaults (container: graphhopper, ports: 8989/8990)
 ./test-live-server.sh
 
-# Custom container and ports
+# Custom container and ports (local testing)
 ./test-live-server.sh my-graphhopper 9000 9001
+
+# Test external endpoint
+./test-live-server.sh '' '' '' https://graphhopper.xanox.org
+
+# Test custom endpoint with specific port
+./test-live-server.sh graphhopper 8989 8990 http://server:8989
 
 # Show help
 ./test-live-server.sh --help
 ```
 
+#### Remote Endpoint Examples:
+```bash
+# HTTPS endpoint (standard port 443)
+./test-live-server.sh '' '' '' https://graphhopper.xanox.org
+
+# HTTP endpoint (standard port 80)
+./test-live-server.sh '' '' '' http://myserver.com
+
+# Custom port
+./test-live-server.sh '' '' '' http://192.168.1.100:8989
+```
+
 ## Testing Scenarios
 
-### 1. Automatic Testing (GitHub Action)
+### 1. Automatic Local Testing (GitHub Action)
 - Triggers automatically after successful deployment
-- Can be manually triggered via workflow_dispatch
+- Tests the deployed container on the docker host
 - Reports results in GitHub Actions UI
 - Fails the workflow if any tests fail
 
-### 2. Manual Testing (Shell Script)
+### 2. Manual External Endpoint Testing (GitHub Action)
+- Manually triggered via workflow_dispatch
+- Can test any external GraphHopper endpoint
+- Runs directly on GitHub Actions runner (no SSH required)
+- Useful for validating live production endpoints
+
+### 3. Manual Local Testing (Shell Script)
 - Run directly on the docker host
 - Provides detailed colored output
 - Useful for debugging deployment issues
 - Can be run independently of GitHub Actions
 
+### 4. Manual External Testing (Shell Script)
+- Test any external GraphHopper endpoint
+- No docker or SSH dependencies required
+- Can be run from any machine with curl and jq
+- Ideal for endpoint validation and debugging
+
 ## Test Coverage
 
-Both testing methods cover:
+All testing methods cover:
 
-1. **Container Health**
-   - Container running status
-   - Resource usage monitoring
-   - Log analysis for errors
-
-2. **Server Endpoints**
+1. **Server Endpoints**
    - Health endpoint (`/health`)
    - Info endpoint (`/info`)
-   - Admin endpoint (`/healthcheck`) if accessible
+   - Admin endpoint (`/healthcheck`) if accessible (localhost only)
 
-3. **Moped Profile Validation**
+2. **Moped Profile Validation**
    - Verify `moped_nl` profile is available
    - Check `moped_access` encoded values are loaded
    - Validate profile configuration
 
-4. **Routing Functionality**
+3. **Routing Functionality**
    - Basic routing with generic coordinates
    - Netherlands-specific routing validation
    - **Critical test**: Ensure routes avoid Overijsselselaan
 
-5. **Route Validation**
+4. **Route Validation**
    - Test coordinates: `53.116614,5.781391` → `53.211454,5.803086`
    - Requirement: Route must NOT use Overijsselselaan
    - Analyzes route instructions to verify street avoidance
 
+5. **Container Health** (localhost only)
+   - Container running status
+   - Resource usage monitoring
+   - Log analysis for errors
+
 ## Dependencies
 
-- `docker` - Container management
 - `curl` - HTTP requests to GraphHopper API
 - `jq` - JSON parsing and validation
+- `docker` - Container management (localhost testing only)
 
 ## Error Handling
 
 Both scripts include comprehensive error handling:
 - Timeout protection for HTTP requests
-- Graceful handling of missing data
+- Graceful handling of missing data or unreachable endpoints
 - Clear error messages and debugging information
 - Exit codes that reflect test results
+- Automatic fallback methods for different endpoint types
 
 ## Integration with CI/CD
 
+### Local Deployment Pipeline
 The GitHub Action workflow integrates with the existing deployment pipeline:
 - Automatically triggered after successful deployment
 - Uses the same SSH credentials as deployment
 - Provides feedback on deployment quality
 - Can prevent broken deployments from going unnoticed
 
+### External Endpoint Validation
+The workflow can be manually triggered to validate external endpoints:
+- No SSH or deployment dependencies
+- Runs directly on GitHub Actions infrastructure
+- Can validate any publicly accessible GraphHopper endpoint
+- Useful for monitoring production endpoints
+
 ## Monitoring Route Quality
 
-The specific route validation ensures that the moped routing engine properly respects Netherlands road access rules and avoids inappropriate routes like Overijsselselaan for the given coordinates.
+The specific route validation ensures that the moped routing engine properly respects Netherlands road access rules and avoids inappropriate routes like Overijsselselaan for the given coordinates, regardless of whether testing locally or remotely.
