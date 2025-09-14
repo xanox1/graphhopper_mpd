@@ -121,7 +121,14 @@ public class Router {
         } catch (MultiplePointsNotFoundException ex) {
             GHResponse ghRsp = new GHResponse();
             for (IntCursor p : ex.getPointsNotFound()) {
-                ghRsp.addError(new PointNotFoundException("Cannot find point " + p.value + ": " + request.getPoints().get(p.value), p.value));
+                GHPoint point = request.getPoints().get(p.value);
+                String enhancedMessage = String.format(
+                    "Cannot find a route to/from point %d (%s). " +
+                    "This coordinate is too far from the nearest road or is in an area where routing is not possible. " +
+                    "Please ensure the coordinate is on or near a road that is accessible for the selected profile '%s'.",
+                    p.value, point, request.getProfile()
+                );
+                ghRsp.addError(new PointNotFoundException(enhancedMessage, p.value));
             }
             return ghRsp;
         } catch (IllegalArgumentException ex) {
