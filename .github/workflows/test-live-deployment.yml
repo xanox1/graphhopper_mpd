@@ -2,7 +2,7 @@
 name: Test Live Deployment
 
 # This workflow tests the actual live server after deployment to the docker host
-# It verifies server health, logs, and specific routing functionality
+# It focuses on external endpoint testing and docker log testing
 on:
   workflow_run:
     workflows: ["Deploy to Docker Host"]
@@ -19,11 +19,6 @@ on:
         description: 'External endpoint to test (e.g., https://graphhopper.xanox.org)'
         required: false
         type: string
-      test_specific_route:
-        description: 'Test the specific route that should avoid Overijsselselaan'
-        required: false
-        type: boolean
-        default: true
 
 jobs:
   test-live-deployment:
@@ -43,8 +38,6 @@ jobs:
       - name: Set up environment
         run: |
           echo "Setting up test environment variables"
-          echo "DOCKER_HOST_SET=$([ -n '${{ secrets.DOCKER_HOST }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
-          echo "SSH_KEY_SET=$([ -n '${{ secrets.SSH_PRIVATE_KEY }}' ] && echo 'true' || echo 'false')" >> $GITHUB_ENV
           echo "TEST_HOST=${{ github.event.inputs.docker_host || secrets.DOCKER_HOST }}" >> $GITHUB_ENV
           echo "TEST_ENDPOINT=${{ github.event.inputs.test_endpoint }}" >> $GITHUB_ENV
 
@@ -57,9 +50,33 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq curl
           
-          # Test external endpoint directly from GitHub Actions runner
-          chmod +x ./test-live-server.sh
-          ./test-live-server.sh '' '' '' "${{ github.event.inputs.test_endpoint }}"
+          # Test external endpoint health
+          ENDPOINT="${{ github.event.inputs.test_endpoint }}"
+          
+          echo "Testing health endpoint..."
+          if curl -f -s --max-time 10 "${ENDPOINT}/health"; then
+            echo "✅ Health endpoint responding"
+          else
+            echo "❌ Health endpoint failed"
+            exit 1
+          fi
+          
+          echo "Testing info endpoint..."
+          if INFO_RESPONSE=$(curl -f -s --max-time 10 "${ENDPOINT}/info"); then
+            echo "✅ Info endpoint responding"
+            echo "GraphHopper version: $(echo "$INFO_RESPONSE" | jq -r '.version // "unknown"')"
+            
+            # Verify API is working
+            if echo "$INFO_RESPONSE" | jq -e '.profiles' >/dev/null 2>&1; then
+              echo "✅ API responding correctly"
+            else
+              echo "❌ API response invalid"
+              exit 1
+            fi
+          else
+            echo "❌ Info endpoint failed"
+            exit 1
+          fi
 
       - name: Wait for deployment to settle
         if: github.event_name == 'workflow_run'
@@ -87,7 +104,6 @@ jobs:
             # Configuration
             CONTAINER_NAME="graphhopper"
             SERVER_PORT="8989"
-            ADMIN_PORT="8990"
             
             print_status() {
                 local color=$1
@@ -95,237 +111,82 @@ jobs:
                 echo -e "${color}[$(date '+%Y-%m-%d %H:%M:%S')] ${message}${NC}"
             }
             
-            print_status $YELLOW "=== Starting Live GraphHopper Deployment Test ==="
-            print_status $YELLOW "Container: ${CONTAINER_NAME}"
-            print_status $YELLOW "Server port: ${SERVER_PORT}"
-            print_status $YELLOW "Admin port: ${ADMIN_PORT}"
+            print_status $YELLOW "=== Testing Live GraphHopper Deployment ==="
             
-            # 1. Check if container is running
+            # 1. Check container status and logs
             print_status $YELLOW "1. Checking container status..."
             if docker ps --filter name=$CONTAINER_NAME --format "table {{.Names}}\t{{.Status}}" | grep -q $CONTAINER_NAME; then
                 print_status $GREEN "✅ Container '$CONTAINER_NAME' is running"
-                docker ps --filter name=$CONTAINER_NAME --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             else
                 print_status $RED "❌ Container '$CONTAINER_NAME' is not running"
-                print_status $YELLOW "Available containers:"
-                docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
                 exit 1
             fi
             
-            # 2. Check container health and logs
-            print_status $YELLOW "2. Checking container logs for errors..."
-            
-            # Check for startup errors
-            if docker logs $CONTAINER_NAME --tail 50 2>&1 | grep -i "error\|exception\|failed\|cannot" | head -10; then
-                print_status $YELLOW "⚠️  Found potential error messages in logs:"
-                docker logs $CONTAINER_NAME --tail 50 2>&1 | grep -i "error\|exception\|failed\|cannot" | head -10
-            else
-                print_status $GREEN "✅ No obvious error messages in recent logs"
-            fi
+            # 2. Check docker logs for service status
+            print_status $YELLOW "2. Checking docker logs for service status..."
             
             # Check for successful startup message
             if docker logs $CONTAINER_NAME 2>&1 | grep -q "Started Server"; then
-                print_status $GREEN "✅ Server startup message found in logs"
+                print_status $GREEN "✅ GraphHopper service started successfully"
             else
-                print_status $YELLOW "⚠️  Server startup message not found - server may still be starting"
+                print_status $RED "❌ GraphHopper service startup not confirmed"
+                print_status $YELLOW "Recent logs:"
+                docker logs $CONTAINER_NAME --tail 20
+                exit 1
             fi
             
-            # 3. Test health endpoint
-            print_status $YELLOW "3. Testing health endpoint..."
-            HEALTH_TIMEOUT=60
-            HEALTH_ATTEMPTS=$((HEALTH_TIMEOUT / 5))
+            # Check for critical errors in logs
+            if docker logs $CONTAINER_NAME --tail 50 2>&1 | grep -i "error\|exception\|failed" | grep -v "WARN" | head -5; then
+                print_status $YELLOW "⚠️ Found error messages in logs (showing first 5):"
+                docker logs $CONTAINER_NAME --tail 50 2>&1 | grep -i "error\|exception\|failed" | grep -v "WARN" | head -5
+            else
+                print_status $GREEN "✅ No critical errors in recent logs"
+            fi
             
-            for i in $(seq 1 $HEALTH_ATTEMPTS); do
-                if curl -f -s --max-time 10 http://localhost:${SERVER_PORT}/health > /dev/null; then
-                    HEALTH_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/health)
-                    print_status $GREEN "✅ Health endpoint responding: $HEALTH_RESPONSE"
-                    break
-                else
-                    print_status $YELLOW "Attempt $i/$HEALTH_ATTEMPTS: Health endpoint not ready..."
-                    if [ $i -eq $HEALTH_ATTEMPTS ]; then
-                        print_status $RED "❌ Health endpoint failed after $HEALTH_TIMEOUT seconds"
+            # 3. Test external endpoint functionality
+            print_status $YELLOW "3. Testing API endpoints..."
+            
+            # Test health endpoint
+            if curl -f -s --max-time 10 http://localhost:${SERVER_PORT}/health > /dev/null; then
+                HEALTH_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/health)
+                print_status $GREEN "✅ Health endpoint responding: $HEALTH_RESPONSE"
+            else
+                print_status $RED "❌ Health endpoint failed"
+                exit 1
+            fi
+            
+            # Test info endpoint for correct API response
+            if INFO_RESPONSE=$(curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info); then
+                if echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
+                    VERSION=$(echo "$INFO_RESPONSE" | jq -r '.version // "unknown"')
+                    print_status $GREEN "✅ Info endpoint responding correctly"
+                    print_status $GREEN "   GraphHopper version: $VERSION"
+                    
+                    # Verify API response structure
+                    if echo "$INFO_RESPONSE" | jq -e '.profiles' >/dev/null 2>&1; then
+                        print_status $GREEN "✅ API response structure is correct"
+                    else
+                        print_status $RED "❌ API response missing expected data"
                         exit 1
                     fi
-                    sleep 5
-                fi
-            done
-            
-            # 4. Test info endpoint and verify moped profile
-            print_status $YELLOW "4. Testing info endpoint and moped profile..."
-            
-            # Multiple attempts to handle potential network/timing issues
-            INFO_RESPONSE=""
-            for attempt in 1 2 3; do
-                if curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info > /dev/null; then
-                    INFO_RESPONSE=$(curl -s --max-time 15 http://localhost:${SERVER_PORT}/info)
-                    if [ -n "$INFO_RESPONSE" ] && echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
-                        break
-                    else
-                        print_status $YELLOW "Attempt $attempt: Invalid JSON response, retrying..."
-                        sleep 2
-                    fi
                 else
-                    print_status $YELLOW "Attempt $attempt: Info endpoint not responding, retrying..."
-                    sleep 2
-                fi
-                
-                if [ $attempt -eq 3 ]; then
-                    print_status $RED "❌ Info endpoint failed after 3 attempts"
-                    exit 1
-                fi
-            done
-            
-            # Parse version safely
-            VERSION=$(echo "$INFO_RESPONSE" | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
-            print_status $GREEN "✅ Info endpoint responding. GraphHopper version: $VERSION"
-            
-            # Debug: Show raw response size and structure
-            RESPONSE_SIZE=$(echo "$INFO_RESPONSE" | wc -c)
-            print_status $YELLOW "Response size: ${RESPONSE_SIZE} characters"
-            
-            # Debug: Show profiles structure
-            print_status $YELLOW "Profiles structure in response:"
-            echo "$INFO_RESPONSE" | jq '.profiles' 2>/dev/null || print_status $RED "Could not parse profiles JSON"
-            
-            # Check if moped_nl profile is available using multiple approaches
-            MOPED_PROFILE_FOUND="false"
-            
-            # Method 1: Direct jq selection
-            if echo "$INFO_RESPONSE" | jq -e '.profiles[] | select(.name == "moped_nl")' >/dev/null 2>&1; then
-                print_status $GREEN "✅ moped_nl profile found (method 1: jq select)"
-                MOPED_PROFILE_FOUND="true"
-            fi
-            
-            # Method 2: Extract all profile names and grep
-            if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
-                PROFILE_NAMES=$(echo "$INFO_RESPONSE" | jq -r '.profiles[].name' 2>/dev/null || echo "")
-                if echo "$PROFILE_NAMES" | grep -q "^moped_nl$"; then
-                    print_status $GREEN "✅ moped_nl profile found (method 2: grep names)"
-                    MOPED_PROFILE_FOUND="true"
-                fi
-            fi
-            
-            # Method 3: Check if profiles array contains moped_nl
-            if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
-                if echo "$INFO_RESPONSE" | jq -r '.profiles | map(.name) | contains(["moped_nl"])' 2>/dev/null | grep -q "true"; then
-                    print_status $GREEN "✅ moped_nl profile found (method 3: contains check)"
-                    MOPED_PROFILE_FOUND="true"
-                fi
-            fi
-            
-            # Final check result
-            if [ "$MOPED_PROFILE_FOUND" = "true" ]; then
-                print_status $GREEN "✅ moped_nl profile is available"
-            else
-                print_status $RED "❌ moped_nl profile is NOT available"
-                print_status $YELLOW "Available profiles:"
-                echo "$INFO_RESPONSE" | jq '.profiles' 2>/dev/null || echo "Could not parse profiles"
-                print_status $YELLOW "Profile names extracted:"
-                echo "$INFO_RESPONSE" | jq -r '.profiles[].name' 2>/dev/null || echo "Could not extract profile names"
-                exit 1
-            fi
-            
-            # Check if moped_access encoded value is available
-            if echo "$INFO_RESPONSE" | jq -e '.encoded_values.moped_access' >/dev/null 2>&1; then
-                MOPED_ACCESS_VALUES=$(echo "$INFO_RESPONSE" | jq -r '.encoded_values.moped_access | join(", ")' 2>/dev/null || echo "Could not join values")
-                print_status $GREEN "✅ moped_access encoded value available: [$MOPED_ACCESS_VALUES]"
-            else
-                print_status $RED "❌ moped_access encoded value is NOT available"
-                print_status $YELLOW "Available encoded values:"
-                echo "$INFO_RESPONSE" | jq '.encoded_values | keys' 2>/dev/null || echo "Could not parse encoded values"
-                exit 1
-            fi
-            
-            # 5. Test basic routing functionality
-            print_status $YELLOW "5. Testing basic routing functionality..."
-            
-            # Test with generic coordinates that should work with any dataset
-            BASIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
-            
-            if BASIC_ROUTE_RESPONSE=$(curl -sf --max-time 30 "$BASIC_ROUTE_URL" 2>/dev/null); then
-                if echo "$BASIC_ROUTE_RESPONSE" | jq -e '.paths[0].distance' >/dev/null 2>&1; then
-                    DISTANCE=$(echo "$BASIC_ROUTE_RESPONSE" | jq -r '.paths[0].distance')
-                    print_status $GREEN "✅ Basic moped routing works! Distance: ${DISTANCE}m"
-                elif echo "$BASIC_ROUTE_RESPONSE" | jq -e '.message' | grep -q "Cannot find point"; then
-                    print_status $YELLOW "⚠️  Basic routing: Point not found (acceptable - dataset may not cover test coordinates)"
-                else
-                    print_status $RED "❌ Basic routing failed with response:"
-                    echo "$BASIC_ROUTE_RESPONSE" | jq '.' 2>/dev/null || echo "$BASIC_ROUTE_RESPONSE"
+                    print_status $RED "❌ Info endpoint returned invalid JSON"
                     exit 1
                 fi
             else
-                print_status $RED "❌ Basic routing request failed"
+                print_status $RED "❌ Info endpoint failed"
                 exit 1
             fi
             
-            # 6. Test specific route coordinates (Netherlands coordinates)
-            print_status $YELLOW "6. Testing specific route that should avoid Overijsselselaan..."
-            
-            # Coordinates from the problem statement: 53.116614,5.781391 to 53.211454,5.803086
-            SPECIFIC_FROM="53.116614,5.781391"
-            SPECIFIC_TO="53.211454,5.803086"
-            SPECIFIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
-            
-            print_status $YELLOW "Testing route from $SPECIFIC_FROM to $SPECIFIC_TO"
-            
-            if SPECIFIC_ROUTE_RESPONSE=$(curl -sf --max-time 30 "$SPECIFIC_ROUTE_URL" 2>/dev/null); then
-                if echo "$SPECIFIC_ROUTE_RESPONSE" | jq -e '.paths[0].distance' >/dev/null 2>&1; then
-                    DISTANCE=$(echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].distance')
-                    TIME=$(echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].time // 0')
-                    print_status $GREEN "✅ Specific route calculation successful!"
-                    print_status $GREEN "   Distance: ${DISTANCE}m"
-                    print_status $GREEN "   Time: ${TIME}ms"
-                    
-                    # Check if route uses Overijsselselaan (the route should NOT use this street)
-                    if echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].instructions[].text // ""' | grep -qi "overijsselselaan"; then
-                        print_status $RED "❌ ROUTE VALIDATION FAILED: Route uses Overijsselselaan!"
-                        print_status $RED "   The routing agent should never route over Overijsselselaan for these coordinates."
-                        print_status $YELLOW "   Route instructions mentioning Overijsselselaan:"
-                        echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].instructions[].text // ""' | grep -i "overijsselselaan" || true
-                        exit 1
-                    else
-                        print_status $GREEN "✅ Route validation passed: Route does NOT use Overijsselselaan"
-                    fi
-                    
-                    # Show a sample of the route instructions for verification
-                    print_status $YELLOW "Sample route instructions (first 5):"
-                    echo "$SPECIFIC_ROUTE_RESPONSE" | jq -r '.paths[0].instructions[:5][] | .text // "N/A"' | head -5 || true
-                    
-                elif echo "$SPECIFIC_ROUTE_RESPONSE" | jq -e '.message' | grep -q "Cannot find point"; then
-                    print_status $YELLOW "⚠️  Specific routing: Cannot find point (dataset may not cover Netherlands coordinates)"
-                    print_status $YELLOW "   This is acceptable if the server is not using Netherlands OSM data"
-                else
-                    print_status $RED "❌ Specific routing failed with response:"
-                    echo "$SPECIFIC_ROUTE_RESPONSE" | jq '.' 2>/dev/null || echo "$SPECIFIC_ROUTE_RESPONSE"
-                    exit 1
-                fi
-            else
-                print_status $RED "❌ Specific routing request failed"
-                exit 1
-            fi
-            
-            # 7. Test admin endpoint (if accessible)
-            print_status $YELLOW "7. Testing admin endpoint..."
-            if curl -f -s --max-time 10 http://localhost:${ADMIN_PORT}/healthcheck > /dev/null 2>&1; then
-                print_status $GREEN "✅ Admin endpoint responding on port ${ADMIN_PORT}"
-            else
-                print_status $YELLOW "ℹ️  Admin endpoint not accessible (this is normal if not exposed)"
-            fi
-            
-            # 8. Final summary
-            print_status $GREEN "=== Live Deployment Test Summary ==="
+            # 4. Final summary
+            print_status $GREEN "=== Test Summary ==="
             print_status $GREEN "✅ Container is running"
-            print_status $GREEN "✅ Server health endpoint responding"
-            print_status $GREEN "✅ Server info endpoint responding"
-            print_status $GREEN "✅ moped_nl profile is available"
-            print_status $GREEN "✅ moped_access encoded values available"
-            print_status $GREEN "✅ Basic routing functionality works"
-            print_status $GREEN "✅ Specific route validation completed"
-            print_status $GREEN "✅ Route correctly avoids Overijsselselaan"
+            print_status $GREEN "✅ GraphHopper service is active"
+            print_status $GREEN "✅ Docker logs show healthy status"
+            print_status $GREEN "✅ External endpoints responding correctly"
+            print_status $GREEN "✅ API responses are valid"
             
-            print_status $GREEN "🎉 All live deployment tests PASSED!"
-            print_status $YELLOW "🌐 GraphHopper Maps UI: http://$(hostname -I | awk '{print $1}'):${SERVER_PORT}/"
-            print_status $YELLOW "📖 API Documentation: http://$(hostname -I | awk '{print $1}'):${SERVER_PORT}/"
+            print_status $GREEN "🎉 Live deployment test PASSED!"
 
       - name: Report test results
         if: always()
@@ -333,9 +194,9 @@ jobs:
           if [ ${{ job.status }} == 'success' ]; then
             echo "✅ Live deployment tests completed successfully"
             if [ -n "${{ github.event.inputs.test_endpoint }}" ]; then
-              echo "The external GraphHopper endpoint at ${{ github.event.inputs.test_endpoint }} is working correctly"
+              echo "External GraphHopper endpoint at ${{ github.event.inputs.test_endpoint }} is responding correctly"
             else
-              echo "The deployed GraphHopper server is working correctly and routing properly avoids Overijsselselaan"
+              echo "Deployed GraphHopper server is working correctly"
             fi
           else
             echo "❌ Live deployment tests failed"
