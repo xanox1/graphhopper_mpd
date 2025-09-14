@@ -12,27 +12,21 @@ SERVER_PORT=${2:-"8989"}
 ADMIN_PORT=${3:-"8990"}
 EXTERNAL_URL=${4:-""}
 
-# Determine base URL for testing
-if [ -n "$EXTERNAL_URL" ]; then
-    BASE_URL="$EXTERNAL_URL"
-    print_status() {
-        local color=$1
-        local message=$2
-        echo -e "${color}[$(date '+%Y-%m-%d %H:%M:%S')] ${message}${NC}"
-    }
-    print_status $YELLOW "Testing external URL: $EXTERNAL_URL"
-    SKIP_CONTAINER_TESTS=true
-else
-    BASE_URL="http://localhost:${SERVER_PORT}"
-    SKIP_CONTAINER_TESTS=false
-fi
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Determine base URL for testing
+if [ -n "$EXTERNAL_URL" ]; then
+    BASE_URL="$EXTERNAL_URL"
+    SKIP_CONTAINER_TESTS=true
+else
+    BASE_URL="http://localhost:${SERVER_PORT}"
+    SKIP_CONTAINER_TESTS=false
+fi
 
 # Function to print colored output
 print_status() {
