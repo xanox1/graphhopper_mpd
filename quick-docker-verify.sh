@@ -62,6 +62,8 @@ RESPONSE=$(curl -s http://localhost:8989/info)
 
 if echo "$RESPONSE" | jq -e '.profiles[] | select(.name == "moped_nl")' >/dev/null 2>&1; then
     echo "✅ moped_nl profile is available"
+elif echo "$RESPONSE" | jq -r '.profiles[].name' 2>/dev/null | grep -q "^moped_nl$"; then
+    echo "✅ moped_nl profile is available (found via grep method)"
 else
     echo "❌ FAIL: moped_nl profile not found"
     echo "Available profiles: $(echo "$RESPONSE" | jq -r '.profiles[].name' | tr '\n' ', ')"

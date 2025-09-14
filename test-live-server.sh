@@ -139,19 +139,35 @@ test_server_endpoints() {
         fi
     done
     
-    # Test info endpoint
+    # Test info endpoint with retry logic
     print_status $YELLOW "Testing info endpoint..."
-    if curl -f -s --max-time 10 http://localhost:${SERVER_PORT}/info > /dev/null; then
-        INFO_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/info)
-        VERSION=$(echo "$INFO_RESPONSE" | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
-        BUILD_DATE=$(echo "$INFO_RESPONSE" | jq -r '.build_date // "unknown"' 2>/dev/null || echo "unknown")
-        print_status $GREEN "✅ Info endpoint responding"
-        print_status $GREEN "   GraphHopper version: $VERSION"
-        print_status $GREEN "   Build date: $BUILD_DATE"
-    else
-        print_status $RED "❌ Info endpoint not responding"
-        return 1
-    fi
+    INFO_RESPONSE=""
+    
+    for attempt in 1 2 3; do
+        if curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info > /dev/null; then
+            INFO_RESPONSE=$(curl -s --max-time 15 http://localhost:${SERVER_PORT}/info)
+            if [ -n "$INFO_RESPONSE" ] && echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
+                break
+            else
+                print_status $YELLOW "Attempt $attempt: Invalid JSON response, retrying..."
+                sleep 2
+            fi
+        else
+            print_status $YELLOW "Attempt $attempt: Info endpoint not responding, retrying..."
+            sleep 2
+        fi
+        
+        if [ $attempt -eq 3 ]; then
+            print_status $RED "❌ Info endpoint failed after 3 attempts"
+            return 1
+        fi
+    done
+    
+    VERSION=$(echo "$INFO_RESPONSE" | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+    BUILD_DATE=$(echo "$INFO_RESPONSE" | jq -r '.build_date // "unknown"' 2>/dev/null || echo "unknown")
+    print_status $GREEN "✅ Info endpoint responding"
+    print_status $GREEN "   GraphHopper version: $VERSION"
+    print_status $GREEN "   Build date: $BUILD_DATE"
     
     # Test admin endpoint
     print_status $YELLOW "Testing admin endpoint..."
@@ -168,18 +184,45 @@ test_moped_profile() {
     
     INFO_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/info)
     
-    # Check if moped_nl profile is available
+    # Check if moped_nl profile is available using multiple methods for robustness
+    MOPED_PROFILE_FOUND="false"
+    
+    # Method 1: Direct jq selection
     if echo "$INFO_RESPONSE" | jq -e '.profiles[] | select(.name == "moped_nl")' >/dev/null 2>&1; then
+        print_status $GREEN "✅ moped_nl profile found (jq select method)"
+        MOPED_PROFILE_FOUND="true"
+    fi
+    
+    # Method 2: Extract profile names and grep (fallback for older jq versions)
+    if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
+        PROFILE_NAMES=$(echo "$INFO_RESPONSE" | jq -r '.profiles[].name' 2>/dev/null || echo "")
+        if echo "$PROFILE_NAMES" | grep -q "^moped_nl$"; then
+            print_status $GREEN "✅ moped_nl profile found (grep method)"
+            MOPED_PROFILE_FOUND="true"
+        fi
+    fi
+    
+    # Method 3: Check using contains (another fallback)
+    if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
+        if echo "$INFO_RESPONSE" | jq -r '.profiles | map(.name) | contains(["moped_nl"])' 2>/dev/null | grep -q "true"; then
+            print_status $GREEN "✅ moped_nl profile found (contains method)"
+            MOPED_PROFILE_FOUND="true"
+        fi
+    fi
+    
+    if [ "$MOPED_PROFILE_FOUND" = "true" ]; then
         print_status $GREEN "✅ moped_nl profile is available"
         
         # Show moped profile details
-        MOPED_PROFILE=$(echo "$INFO_RESPONSE" | jq '.profiles[] | select(.name == "moped_nl")')
+        MOPED_PROFILE=$(echo "$INFO_RESPONSE" | jq '.profiles[] | select(.name == "moped_nl")' 2>/dev/null || echo '{"name": "moped_nl"}')
         print_status $YELLOW "Moped profile details:"
-        echo "$MOPED_PROFILE" | jq '.'
+        echo "$MOPED_PROFILE" | jq '.' 2>/dev/null || echo "Could not parse profile details"
     else
         print_status $RED "❌ moped_nl profile is NOT available"
         print_status $YELLOW "Available profiles:"
         echo "$INFO_RESPONSE" | jq '.profiles[].name' 2>/dev/null || echo "Could not parse profiles"
+        print_status $YELLOW "Raw profiles JSON:"
+        echo "$INFO_RESPONSE" | jq '.profiles' 2>/dev/null || echo "Could not parse profiles JSON"
         return 1
     fi
     

@@ -98,10 +98,33 @@ verify_moped_profile() {
         return 1
     fi
     
-    # Check if moped_nl profile is listed
+    # Check if moped_nl profile is listed using multiple methods for robustness
+    MOPED_PROFILE_FOUND="false"
+    
+    # Method 1: Direct jq selection
     if echo "$info_response" | jq -e '.profiles[] | select(.name == "moped_nl")' >/dev/null 2>&1; then
-        print_status $GREEN "SUCCESS: moped_nl profile is available"
-    else
+        print_status $GREEN "SUCCESS: moped_nl profile is available (jq select method)"
+        MOPED_PROFILE_FOUND="true"
+    fi
+    
+    # Method 2: Extract profile names and grep (fallback for older jq versions)
+    if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
+        PROFILE_NAMES=$(echo "$info_response" | jq -r '.profiles[].name' 2>/dev/null || echo "")
+        if echo "$PROFILE_NAMES" | grep -q "^moped_nl$"; then
+            print_status $GREEN "SUCCESS: moped_nl profile is available (grep method)"
+            MOPED_PROFILE_FOUND="true"
+        fi
+    fi
+    
+    # Method 3: Check using contains (another fallback)
+    if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
+        if echo "$info_response" | jq -r '.profiles | map(.name) | contains(["moped_nl"])' 2>/dev/null | grep -q "true"; then
+            print_status $GREEN "SUCCESS: moped_nl profile is available (contains method)"
+            MOPED_PROFILE_FOUND="true"
+        fi
+    fi
+    
+    if [ "$MOPED_PROFILE_FOUND" = "false" ]; then
         print_status $RED "FAILURE: moped_nl profile is not available"
         print_status $YELLOW "Available profiles:"
         echo "$info_response" | jq '.profiles' 2>/dev/null || echo "Could not parse profiles"
