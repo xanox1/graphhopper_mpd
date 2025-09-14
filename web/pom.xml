@@ -109,6 +109,26 @@
                 <shade-phase>none</shade-phase>
             </properties>
         </profile>
+        <profile>
+            <!-- Use -Pexternal-endpoint-test to run tests against external endpoint (https://graphhopper.xanox.org) -->
+            <id>external-endpoint-test</id>
+            <properties>
+                <test.external.endpoint>https://graphhopper.xanox.org</test.external.endpoint>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <systemPropertyVariables>
+                                <test.external.endpoint>${test.external.endpoint}</test.external.endpoint>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 </project>
 
