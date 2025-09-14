@@ -146,18 +146,17 @@ check_container_logs() {
 test_server_endpoints() {
     print_section "Server Endpoint Testing"
     
-    # Build URLs using base URL and port (only add port if not using standard HTTPS port)
-    if [[ "$BASE_URL" =~ ^https:// ]] && [[ "$SERVER_PORT" == "443" ]]; then
-        HEALTH_URL="${BASE_URL}/health"
-        INFO_URL="${BASE_URL}/info"
-    elif [[ "$BASE_URL" =~ ^http:// ]] && [[ "$SERVER_PORT" == "80" ]]; then
+    # Build URLs using base URL - if base URL already includes port, don't add it again
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
+        # Base URL already includes port or uses standard ports
         HEALTH_URL="${BASE_URL}/health"
         INFO_URL="${BASE_URL}/info"
     elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
+        # Localhost without port - add the port
         HEALTH_URL="${BASE_URL}:${SERVER_PORT}/health"
         INFO_URL="${BASE_URL}:${SERVER_PORT}/info"
     else
-        # For external endpoints, assume standard ports or port is included in BASE_URL
+        # External endpoint - assume port is handled by BASE_URL or use standard ports
         HEALTH_URL="${BASE_URL}/health"
         INFO_URL="${BASE_URL}/info"
     fi
@@ -232,9 +231,7 @@ test_moped_profile() {
     print_section "Moped Profile Validation"
     
     # Build info URL
-    if [[ "$BASE_URL" =~ ^https:// ]] && [[ "$SERVER_PORT" == "443" ]]; then
-        INFO_URL="${BASE_URL}/info"
-    elif [[ "$BASE_URL" =~ ^http:// ]] && [[ "$SERVER_PORT" == "80" ]]; then
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
         INFO_URL="${BASE_URL}/info"
     elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
         INFO_URL="${BASE_URL}:${SERVER_PORT}/info"
@@ -307,9 +304,7 @@ test_basic_routing() {
     print_status $YELLOW "Testing basic moped routing..."
     
     # Build route URL
-    if [[ "$BASE_URL" =~ ^https:// ]] && [[ "$SERVER_PORT" == "443" ]]; then
-        BASIC_ROUTE_URL="${BASE_URL}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
-    elif [[ "$BASE_URL" =~ ^http:// ]] && [[ "$SERVER_PORT" == "80" ]]; then
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
         BASIC_ROUTE_URL="${BASE_URL}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
     elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
         BASIC_ROUTE_URL="${BASE_URL}:${SERVER_PORT}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
@@ -348,9 +343,7 @@ test_specific_route_validation() {
     SPECIFIC_TO="53.211454,5.803086"
     
     # Build route URL
-    if [[ "$BASE_URL" =~ ^https:// ]] && [[ "$SERVER_PORT" == "443" ]]; then
-        SPECIFIC_ROUTE_URL="${BASE_URL}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
-    elif [[ "$BASE_URL" =~ ^http:// ]] && [[ "$SERVER_PORT" == "80" ]]; then
+    if [[ "$BASE_URL" =~ :[0-9]+$ ]] || [[ "$BASE_URL" =~ ^https:// && "$SERVER_PORT" == "443" ]] || [[ "$BASE_URL" =~ ^http:// && "$SERVER_PORT" == "80" ]]; then
         SPECIFIC_ROUTE_URL="${BASE_URL}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
     elif [[ "$BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
         SPECIFIC_ROUTE_URL="${BASE_URL}:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
@@ -409,8 +402,13 @@ run_all_tests() {
     
     # Run each test and track failures
     check_dependencies || failed_tests+=("dependencies")
-    test_container_status || failed_tests+=("container_status")
-    check_container_logs || failed_tests+=("container_logs")
+    
+    # Skip container tests for remote endpoints
+    if [ "$REMOTE_ENDPOINT" = false ]; then
+        test_container_status || failed_tests+=("container_status")
+        check_container_logs || failed_tests+=("container_logs")
+    fi
+    
     test_server_endpoints || failed_tests+=("server_endpoints")
     test_moped_profile || failed_tests+=("moped_profile")
     test_basic_routing || failed_tests+=("basic_routing")
@@ -421,8 +419,13 @@ run_all_tests() {
     
     if [ ${#failed_tests[@]} -eq 0 ]; then
         print_status $GREEN "🎉 ALL TESTS PASSED!"
-        print_status $GREEN "✅ Container is running properly"
-        print_status $GREEN "✅ Server endpoints are responding"
+        if [ "$REMOTE_ENDPOINT" = true ]; then
+            print_status $GREEN "✅ Remote endpoint is responding properly"
+            print_status $GREEN "✅ Server endpoints are accessible"
+        else
+            print_status $GREEN "✅ Container is running properly"
+            print_status $GREEN "✅ Server endpoints are responding"
+        fi
         print_status $GREEN "✅ Moped profile is working correctly"
         print_status $GREEN "✅ Routing functionality is operational"
         print_status $GREEN "✅ Route correctly avoids Overijsselselaan"
