@@ -137,12 +137,15 @@ jobs:
             # Multiple attempts to handle potential network/timing issues
             INFO_RESPONSE=""
             for attempt in 1 2 3; do
-                if curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info > /dev/null; then
-                    INFO_RESPONSE=$(curl -s --max-time 15 http://localhost:${SERVER_PORT}/info)
-                    if [ -n "$INFO_RESPONSE" ] && echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
+                # Use a single curl call to avoid race conditions between check and fetch
+                INFO_RESPONSE=$(curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info 2>/dev/null)
+                if [ $? -eq 0 ] && [ -n "$INFO_RESPONSE" ]; then
+                    # Validate JSON with better error handling
+                    if echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
                         break
                     else
                         print_status $YELLOW "Attempt $attempt: Invalid JSON response, retrying..."
+                        print_status $YELLOW "Response preview: $(echo "$INFO_RESPONSE" | head -c 200)..."
                         sleep 2
                     fi
                 else
@@ -152,6 +155,7 @@ jobs:
                 
                 if [ $attempt -eq 3 ]; then
                     print_status $RED "❌ Info endpoint failed after 3 attempts"
+                    print_status $RED "Last response: $INFO_RESPONSE"
                     exit 1
                 fi
             done

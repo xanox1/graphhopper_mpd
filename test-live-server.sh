@@ -2,7 +2,7 @@
 
 # Live GraphHopper Server Test Script
 # This script tests the actual deployed GraphHopper server including specific routing validation
-# Usage: ./test-live-server.sh [container_name] [server_port] [admin_port]
+# Usage: ./test-live-server.sh [container_name] [server_port] [admin_port] [external_url]
 
 set -euo pipefail
 
@@ -10,6 +10,22 @@ set -euo pipefail
 CONTAINER_NAME=${1:-"graphhopper"}
 SERVER_PORT=${2:-"8989"}
 ADMIN_PORT=${3:-"8990"}
+EXTERNAL_URL=${4:-""}
+
+# Determine base URL for testing
+if [ -n "$EXTERNAL_URL" ]; then
+    BASE_URL="$EXTERNAL_URL"
+    print_status() {
+        local color=$1
+        local message=$2
+        echo -e "${color}[$(date '+%Y-%m-%d %H:%M:%S')] ${message}${NC}"
+    }
+    print_status $YELLOW "Testing external URL: $EXTERNAL_URL"
+    SKIP_CONTAINER_TESTS=true
+else
+    BASE_URL="http://localhost:${SERVER_PORT}"
+    SKIP_CONTAINER_TESTS=false
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -40,7 +56,8 @@ check_dependencies() {
     
     local missing_deps=()
     
-    if ! command -v docker >/dev/null 2>&1; then
+    # Docker is only required for container tests
+    if [ "$SKIP_CONTAINER_TESTS" = "false" ] && ! command -v docker >/dev/null 2>&1; then
         missing_deps+=("docker")
     fi
     
@@ -63,6 +80,11 @@ check_dependencies() {
 
 # Function to test container status
 test_container_status() {
+    if [ "$SKIP_CONTAINER_TESTS" = "true" ]; then
+        print_status $YELLOW "Skipping container tests (using external URL)"
+        return 0
+    fi
+    
     print_section "Container Status Check"
     
     if docker ps --filter name=$CONTAINER_NAME --format "table {{.Names}}\t{{.Status}}" | grep -q $CONTAINER_NAME; then
@@ -85,6 +107,11 @@ test_container_status() {
 
 # Function to check container logs
 check_container_logs() {
+    if [ "$SKIP_CONTAINER_TESTS" = "true" ]; then
+        print_status $YELLOW "Skipping container log check (using external URL)"
+        return 0
+    fi
+    
     print_section "Container Logs Analysis"
     
     print_status $YELLOW "Checking recent logs for errors..."
@@ -125,8 +152,8 @@ test_server_endpoints() {
     HEALTH_ATTEMPTS=$((HEALTH_TIMEOUT / 5))
     
     for i in $(seq 1 $HEALTH_ATTEMPTS); do
-        if curl -f -s --max-time 10 http://localhost:${SERVER_PORT}/health > /dev/null; then
-            HEALTH_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/health)
+        if curl -f -s --max-time 10 ${BASE_URL}/health > /dev/null; then
+            HEALTH_RESPONSE=$(curl -s --max-time 10 ${BASE_URL}/health)
             print_status $GREEN "✅ Health endpoint responding: $HEALTH_RESPONSE"
             break
         else
@@ -144,12 +171,15 @@ test_server_endpoints() {
     INFO_RESPONSE=""
     
     for attempt in 1 2 3; do
-        if curl -f -s --max-time 15 http://localhost:${SERVER_PORT}/info > /dev/null; then
-            INFO_RESPONSE=$(curl -s --max-time 15 http://localhost:${SERVER_PORT}/info)
-            if [ -n "$INFO_RESPONSE" ] && echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
+        # Use a single curl call to avoid race conditions between check and fetch
+        INFO_RESPONSE=$(curl -f -s --max-time 15 ${BASE_URL}/info 2>/dev/null)
+        if [ $? -eq 0 ] && [ -n "$INFO_RESPONSE" ]; then
+            # Validate JSON with better error handling
+            if echo "$INFO_RESPONSE" | jq . >/dev/null 2>&1; then
                 break
             else
                 print_status $YELLOW "Attempt $attempt: Invalid JSON response, retrying..."
+                print_status $YELLOW "Response preview: $(echo "$INFO_RESPONSE" | head -c 200)..."
                 sleep 2
             fi
         else
@@ -159,6 +189,7 @@ test_server_endpoints() {
         
         if [ $attempt -eq 3 ]; then
             print_status $RED "❌ Info endpoint failed after 3 attempts"
+            print_status $RED "Last response: $INFO_RESPONSE"
             return 1
         fi
     done
@@ -169,12 +200,16 @@ test_server_endpoints() {
     print_status $GREEN "   GraphHopper version: $VERSION"
     print_status $GREEN "   Build date: $BUILD_DATE"
     
-    # Test admin endpoint
-    print_status $YELLOW "Testing admin endpoint..."
-    if curl -f -s --max-time 10 http://localhost:${ADMIN_PORT}/healthcheck > /dev/null 2>&1; then
-        print_status $GREEN "✅ Admin endpoint responding on port ${ADMIN_PORT}"
+    # Test admin endpoint (only for local container tests)
+    if [ "$SKIP_CONTAINER_TESTS" = "false" ]; then
+        print_status $YELLOW "Testing admin endpoint..."
+        if curl -f -s --max-time 10 http://localhost:${ADMIN_PORT}/healthcheck > /dev/null 2>&1; then
+            print_status $GREEN "✅ Admin endpoint responding on port ${ADMIN_PORT}"
+        else
+            print_status $YELLOW "ℹ️  Admin endpoint not accessible (this is normal if not exposed)"
+        fi
     else
-        print_status $YELLOW "ℹ️  Admin endpoint not accessible (this is normal if not exposed)"
+        print_status $YELLOW "Skipping admin endpoint test (using external URL)"
     fi
 }
 
@@ -182,7 +217,7 @@ test_server_endpoints() {
 test_moped_profile() {
     print_section "Moped Profile Validation"
     
-    INFO_RESPONSE=$(curl -s --max-time 10 http://localhost:${SERVER_PORT}/info)
+    INFO_RESPONSE=$(curl -s --max-time 10 ${BASE_URL}/info)
     
     # Check if moped_nl profile is available using multiple methods for robustness
     MOPED_PROFILE_FOUND="false"
@@ -247,7 +282,7 @@ test_basic_routing() {
     print_status $YELLOW "Testing basic moped routing..."
     
     # Test with generic coordinates that should work with any dataset
-    BASIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
+    BASIC_ROUTE_URL="${BASE_URL}/route?point=42.50,1.52&point=42.51,1.53&profile=moped_nl&ch.disable=true"
     
     if BASIC_ROUTE_RESPONSE=$(curl -sf --max-time 30 "$BASIC_ROUTE_URL" 2>/dev/null); then
         if echo "$BASIC_ROUTE_RESPONSE" | jq -e '.paths[0].distance' >/dev/null 2>&1; then
@@ -276,7 +311,7 @@ test_specific_route_validation() {
     # Coordinates from the problem statement: 53.116614,5.781391 to 53.211454,5.803086
     SPECIFIC_FROM="53.116614,5.781391"
     SPECIFIC_TO="53.211454,5.803086"
-    SPECIFIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
+    SPECIFIC_ROUTE_URL="${BASE_URL}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
     
     print_status $YELLOW "Testing route from $SPECIFIC_FROM to $SPECIFIC_TO"
     print_status $YELLOW "This route should NOT use Overijsselselaan"
@@ -364,25 +399,27 @@ run_all_tests() {
 show_usage() {
     echo "Live GraphHopper Server Test Script"
     echo ""
-    echo "Usage: $0 [container_name] [server_port] [admin_port]"
+    echo "Usage: $0 [container_name] [server_port] [admin_port] [external_url]"
     echo ""
     echo "Parameters:"
     echo "  container_name    Docker container name (default: graphhopper)"
     echo "  server_port       GraphHopper server port (default: 8989)"
     echo "  admin_port        GraphHopper admin port (default: 8990)"
+    echo "  external_url      External GraphHopper URL (skips container tests)"
     echo ""
     echo "Examples:"
-    echo "  $0                                    # Use defaults"
+    echo "  $0                                    # Use defaults (local container)"
     echo "  $0 my-graphhopper 9000 9001          # Custom container and ports"
+    echo "  $0 '' '' '' https://graphopper.xanox.org  # Test external URL"
     echo ""
     echo "This script tests:"
-    echo "  - Container status and logs"
+    echo "  - Container status and logs (local only)"
     echo "  - Server health and info endpoints"
     echo "  - Moped profile availability"
     echo "  - Basic routing functionality"
     echo "  - Specific route validation (avoiding Overijsselselaan)"
     echo ""
-    echo "Dependencies: docker, curl, jq"
+    echo "Dependencies: curl, jq (docker only for local container tests)"
 }
 
 # Main execution
