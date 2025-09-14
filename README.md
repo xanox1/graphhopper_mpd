@@ -114,6 +114,15 @@ you'll see a map of Berlin. You should be able to right click on the map to crea
 
 See the [documentation](./docs/index.md) that contains e.g. [the elevation guide](./docs/core/elevation.md) and the [deployment guide](./docs/core/deploy.md).
 
+### Live Deployment Testing
+
+This repository includes comprehensive testing for deployed GraphHopper servers. See [LIVE_TESTING.md](LIVE_TESTING.md) for details on:
+
+- Automated testing after deployment via GitHub Actions
+- Manual testing scripts for server validation  
+- Specific route quality validation (ensuring moped routes avoid inappropriate streets)
+- Testing the coordinates 53.116614,5.781391 → 53.211454,5.803086 to verify Overijsselselaan avoidance
+
 ### Docker
 
 This repository includes Docker support with volume-based configuration. See [DOCKER.md](./DOCKER.md) for detailed instructions.
