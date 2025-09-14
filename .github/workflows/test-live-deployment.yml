@@ -22,7 +22,7 @@ on:
 
 jobs:
   test-live-deployment:
-    runs-on: gitdocker
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: read
