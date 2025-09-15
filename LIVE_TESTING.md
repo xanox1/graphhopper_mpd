@@ -10,6 +10,8 @@ GitHub Action workflow that tests GraphHopper endpoints with focus on external v
 - **External endpoint testing**: Defaults to testing `https://graphhopper.xanox.org` automatically
 - **Local deployment testing**: Can test local server by setting `test_endpoint` to "localhost"
 - **Custom endpoint testing**: Can be configured to test any GraphHopper endpoint
+- **Smart dependency management**: Automatically detects and installs required tools (`curl`, `jq`) using available package managers
+- **Cloudflare protection handling**: Properly recognizes Cloudflare challenge pages as valid responses
 - Container status and health checks (local only)
 - Server endpoint validation
 - Moped profile availability verification
@@ -112,18 +114,22 @@ All testing methods cover:
 
 ## Dependencies
 
-- `curl` - HTTP requests to GraphHopper API
-- `jq` - JSON parsing and validation
+- `curl` - HTTP requests to GraphHopper API (automatically detected and installed if missing)
+- `jq` - JSON parsing and validation (automatically detected and installed if missing)
 - `docker` - Container management (localhost testing only)
+
+The workflow automatically detects if dependencies are available and attempts installation using the appropriate package manager (`apt-get`, `yum`, `dnf`, or `apk`).
 
 ## Error Handling
 
 Both scripts include comprehensive error handling:
 - Timeout protection for HTTP requests
 - Graceful handling of missing data or unreachable endpoints
+- **Cloudflare challenge page recognition**: Endpoints behind Cloudflare protection are correctly identified as accessible
 - Clear error messages and debugging information
 - Exit codes that reflect test results
 - Automatic fallback methods for different endpoint types
+- **Multi-package manager support**: Automatic detection and installation of dependencies across different Linux distributions
 
 ## Integration with CI/CD
 
