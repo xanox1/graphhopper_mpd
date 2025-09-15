@@ -233,9 +233,9 @@ jobs:
             # 4. Test specific route that should avoid Overijsselselaan
             print_status $YELLOW "4. Testing specific route that should avoid Overijsselselaan..."
             
-            # Coordinates from the problem statement: 53.116614,5.781391 to 53.211454,5.803086
-            SPECIFIC_FROM="53.116614,5.781391"
-            SPECIFIC_TO="53.211454,5.803086"
+            # Coordinates from the user specification: 53.11684,5.782628 to 53.21662,5.80059
+            SPECIFIC_FROM="53.11684,5.782628"
+            SPECIFIC_TO="53.21662,5.80059"
             SPECIFIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
             
             print_status $YELLOW "Testing route from $SPECIFIC_FROM to $SPECIFIC_TO"

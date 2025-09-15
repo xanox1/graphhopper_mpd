@@ -69,16 +69,8 @@ public class ExternalEndpointMopedTest {
         
         GHResponse rsp = gh.route(req);
         
-        // Handle potential errors gracefully for external endpoints
-        if (rsp.hasErrors()) {
-            String errorMessage = rsp.getErrors().toString().toLowerCase();
-            if (errorMessage.contains("point") || errorMessage.contains("cannot find")) {
-                System.out.println("External endpoint test: Point not found (acceptable - dataset may not cover these coordinates): " + rsp.getErrors());
-                return; // Skip test if coordinates are not in the external dataset
-            }
-        }
-        
-        assertFalse(rsp.hasErrors(), "External endpoint moped routing errors: " + rsp.getErrors().toString());
+        // Do not ignore routing errors - routing should work for Netherlands coordinates
+        assertFalse(rsp.hasErrors(), "Moped routing should succeed for Amsterdam to Groningen. Errors: " + rsp.getErrors().toString());
         ResponsePath res = rsp.getBest();
         assertTrue(res.getDistance() > 0, "Moped route should have positive distance");
         assertTrue(res.getTime() > 0, "Moped route should have positive time");
@@ -104,16 +96,8 @@ public class ExternalEndpointMopedTest {
         
         GHResponse rsp = gh.route(req);
         
-        // Handle potential errors gracefully for external endpoints
-        if (rsp.hasErrors()) {
-            String errorMessage = rsp.getErrors().toString().toLowerCase();
-            if (errorMessage.contains("point") || errorMessage.contains("cannot find")) {
-                System.out.println("External endpoint test: Point not found (acceptable - dataset may not cover these coordinates): " + rsp.getErrors());
-                return; // Skip test if coordinates are not in the external dataset
-            }
-        }
-        
-        assertFalse(rsp.hasErrors(), "External endpoint moped short routing errors: " + rsp.getErrors().toString());
+        // Do not ignore routing errors - routing should work for Amsterdam coordinates
+        assertFalse(rsp.hasErrors(), "Short moped routing should succeed within Amsterdam. Errors: " + rsp.getErrors().toString());
         ResponsePath res = rsp.getBest();
         assertTrue(res.getDistance() > 0, "Short moped route should have positive distance");
         assertTrue(res.getTime() > 0, "Short moped route should have positive time");
@@ -128,10 +112,10 @@ public class ExternalEndpointMopedTest {
         GraphHopperWeb gh = createGH();
         
         // Test the specific route that should avoid Overijsselselaan
-        // These are the coordinates from the existing test-live-server.sh script
+        // Using the coordinates provided by the user: 53.11684,5.782628 to 53.21662,5.80059
         GHRequest req = new GHRequest()
-                .addPoint(new GHPoint(53.116614, 5.781391))
-                .addPoint(new GHPoint(53.211454, 5.803086))
+                .addPoint(new GHPoint(53.11684, 5.782628))
+                .addPoint(new GHPoint(53.21662, 5.80059))
                 .setProfile("moped_nl")
                 .putHint("elevation", false)
                 .putHint("instructions", true)
@@ -139,16 +123,9 @@ public class ExternalEndpointMopedTest {
         
         GHResponse rsp = gh.route(req);
         
-        // Handle potential errors gracefully for external endpoints
-        if (rsp.hasErrors()) {
-            String errorMessage = rsp.getErrors().toString().toLowerCase();
-            if (errorMessage.contains("point") || errorMessage.contains("cannot find")) {
-                System.out.println("External endpoint test: Point not found (acceptable - dataset may not cover these coordinates): " + rsp.getErrors());
-                return; // Skip test if coordinates are not in the external dataset
-            }
-        }
+        // Do not ignore routing errors - this route should be possible
+        assertFalse(rsp.hasErrors(), "Routing should succeed for coordinates 53.11684,5.782628 to 53.21662,5.80059. Errors: " + rsp.getErrors().toString());
         
-        assertFalse(rsp.hasErrors(), "External endpoint Overijsselselaan avoidance routing errors: " + rsp.getErrors().toString());
         ResponsePath res = rsp.getBest();
         assertTrue(res.getDistance() > 0, "Overijsselselaan avoidance route should have positive distance");
         assertTrue(res.getTime() > 0, "Overijsselselaan avoidance route should have positive time");
