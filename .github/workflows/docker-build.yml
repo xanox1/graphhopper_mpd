@@ -15,7 +15,7 @@ env:
 
 jobs:
   docker-build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # Only run on pushes to master, or when PRs are merged to master
     if: |
       github.event_name == 'push' ||
