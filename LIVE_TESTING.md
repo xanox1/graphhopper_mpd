@@ -12,6 +12,7 @@ GitHub Action workflow that tests GraphHopper endpoints with focus on external v
 - **Custom endpoint testing**: Can be configured to test any GraphHopper endpoint
 - **Smart dependency management**: Automatically detects and installs required tools (`curl`, `jq`) using available package managers
 - **Cloudflare protection handling**: Properly recognizes Cloudflare challenge pages as valid responses
+- **External endpoint routing tests**: Runs Java-based `ExternalEndpointMopedTest` to validate moped routing functionality
 - Container status and health checks (local only)
 - Server endpoint validation
 - Moped profile availability verification
@@ -58,6 +59,7 @@ Standalone script that can test both local containers and remote endpoints with 
 - Triggers automatically after successful deployment
 - Reports results in GitHub Actions UI
 - Validates live production endpoint functionality
+- **External endpoint routing tests**: Runs Java-based routing tests using the `moped_nl` profile to validate actual routing functionality
 
 ### 2. Manual Local Testing (GitHub Action)
 - Set `test_endpoint` to "localhost" to test deployed containers
@@ -70,6 +72,7 @@ Standalone script that can test both local containers and remote endpoints with 
 - Can test any external GraphHopper endpoint
 - Runs directly on GitHub Actions runner (no SSH required)
 - Useful for validating different environments
+- **Java routing tests**: Includes comprehensive routing tests using `ExternalEndpointMopedTest` for moped profile validation
 
 ### 3. Manual Local Testing (Shell Script)
 - Run directly on the docker host
