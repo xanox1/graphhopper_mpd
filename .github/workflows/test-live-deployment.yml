@@ -110,6 +110,31 @@ jobs:
             echo "✅ Info endpoint responding (received content, may need authentication)"
           fi
 
+      - name: Test External Endpoint Routing (Java Tests)
+        if: env.TEST_ENDPOINT != 'localhost'
+        run: |
+          echo "Running external endpoint routing tests against: ${{ env.TEST_ENDPOINT }}"
+          
+          # Set up Java environment for testing
+          if [ -d "/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.13-11/x64" ]; then
+            export JAVA_HOME=/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.13-11/x64
+            export PATH=$JAVA_HOME/bin:$PATH
+          else
+            echo "Using system Java"
+          fi
+          
+          # Run external endpoint moped routing tests
+          echo "Running ExternalEndpointMopedTest with moped_nl profile..."
+          # Only override the endpoint if it's different from the default
+          if [ "${{ env.TEST_ENDPOINT }}" = "https://graphhopper.xanox.org" ]; then
+            mvn test -pl web -Pexternal-endpoint-test -Dtest=ExternalEndpointMopedTest -q
+          else
+            mvn test -pl web -Pexternal-endpoint-test -Dtest.external.endpoint="${{ env.TEST_ENDPOINT }}" -Dtest=ExternalEndpointMopedTest -q
+          fi
+          
+          echo "✅ External endpoint routing tests completed successfully"
+          echo "The external GraphHopper API at ${{ env.TEST_ENDPOINT }} is handling moped routing requests correctly"
+
       - name: Wait for deployment to settle
         if: github.event_name == 'workflow_run'
         run: |
@@ -213,9 +238,9 @@ jobs:
             # 4. Test specific route that should avoid Overijsselselaan
             print_status $YELLOW "4. Testing specific route that should avoid Overijsselselaan..."
             
-            # Coordinates from the problem statement: 53.116614,5.781391 to 53.211454,5.803086
-            SPECIFIC_FROM="53.116614,5.781391"
-            SPECIFIC_TO="53.211454,5.803086"
+            # Coordinates from the user specification: 53.11684,5.782628 to 53.21662,5.80059
+            SPECIFIC_FROM="53.11684,5.782628"
+            SPECIFIC_TO="53.21662,5.80059"
             SPECIFIC_ROUTE_URL="http://localhost:${SERVER_PORT}/route?point=${SPECIFIC_FROM}&point=${SPECIFIC_TO}&profile=moped_nl&ch.disable=true&instructions=true"
             
             print_status $YELLOW "Testing route from $SPECIFIC_FROM to $SPECIFIC_TO"

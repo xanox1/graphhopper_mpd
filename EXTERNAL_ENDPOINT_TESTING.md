@@ -54,6 +54,12 @@ mvn test -pl web -Dtest.external.endpoint=https://custom.graphhopper.com -Dtest=
 mvn test -pl web -Pexternal-endpoint-test -Dtest=RouteResourceClientHCTest#testSimpleRoute
 ```
 
+### 5. Moped-Specific External Endpoint Testing
+```bash
+# Test moped routing specifically against external endpoint
+mvn test -pl web -Pexternal-endpoint-test -Dtest=ExternalEndpointMopedTest
+```
+
 ## Test Behavior
 
 ### Local Testing (Default)
@@ -114,6 +120,16 @@ The main test class has been enhanced with:
 - Adaptive test assertions based on endpoint type
 - Better error handling for external connectivity issues
 
+### ExternalEndpointMopedTest
+
+A dedicated test class specifically for external endpoint testing with the `moped_nl` profile:
+
+- `testMopedRouting()`: Tests basic moped routing functionality with Netherlands coordinates
+- `testMopedRoutingShortRoute()`: Tests shorter moped routes within Amsterdam
+- `testOverijsselselaanAvoidance()`: Tests that routes avoid Overijsselselaan as required
+- Graceful handling of "point not found" errors for external datasets
+- Optimized for the `moped_nl` profile available on production endpoints
+
 ## Error Handling
 
 ### Network Connectivity
@@ -140,6 +156,10 @@ The external endpoint testing can be integrated into CI/CD pipelines:
 # GitHub Actions example
 - name: Test External Endpoint
   run: mvn test -pl web -Pexternal-endpoint-test -Dtest=RouteResourceClientHCTest
+
+# Test moped-specific routing
+- name: Test External Moped Routing
+  run: mvn test -pl web -Pexternal-endpoint-test -Dtest=ExternalEndpointMopedTest
 ```
 
 ## Troubleshooting
