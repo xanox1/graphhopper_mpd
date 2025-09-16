@@ -125,7 +125,12 @@ jobs:
           
           # Run external endpoint moped routing tests
           echo "Running ExternalEndpointMopedTest with moped_nl profile..."
-          mvn test -pl web -Pexternal-endpoint-test -Dtest.external.endpoint="${{ env.TEST_ENDPOINT }}" -Dtest=ExternalEndpointMopedTest -q
+          # Only override the endpoint if it's different from the default
+          if [ "${{ env.TEST_ENDPOINT }}" = "https://graphhopper.xanox.org" ]; then
+            mvn test -pl web -Pexternal-endpoint-test -Dtest=ExternalEndpointMopedTest -q
+          else
+            mvn test -pl web -Pexternal-endpoint-test -Dtest.external.endpoint="${{ env.TEST_ENDPOINT }}" -Dtest=ExternalEndpointMopedTest -q
+          fi
           
           echo "✅ External endpoint routing tests completed successfully"
           echo "The external GraphHopper API at ${{ env.TEST_ENDPOINT }} is handling moped routing requests correctly"
